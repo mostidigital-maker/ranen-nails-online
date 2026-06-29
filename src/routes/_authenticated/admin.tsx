@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLang, RENIN_PHONE } from "@/lib/i18n";
 import { SiteHeader } from "@/components/SiteHeader";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Trash2, Plus, MessageCircle, Calendar, Settings, LogOut, Pencil } from "lucide-react";
+import { CheckCircle2, XCircle, Trash2, Plus, MessageCircle, Calendar, Settings, LogOut, Pencil, Clock, Ban } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "لوحة التحكم | رنين نيلز" }, { name: "robots", content: "noindex" }] }),
@@ -36,7 +36,7 @@ type Service = {
 function AdminPage() {
   const { t, lang } = useLang();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"appointments" | "services">("appointments");
+  const [tab, setTab] = useState<"appointments" | "services" | "hours" | "blocks">("appointments");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const qc = useQueryClient();
 
@@ -88,21 +88,21 @@ function AdminPage() {
           </div>
         </div>
 
-        <div className="mt-6 inline-flex rounded-xl border border-border bg-card p-1">
-          {(["appointments", "services"] as const).map((k) => (
+        <div className="mt-6 inline-flex flex-wrap rounded-xl border border-border bg-card p-1">
+          {(["appointments", "services", "hours", "blocks"] as const).map((k) => (
             <button
               key={k}
               onClick={() => setTab(k)}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >
-              {k === "appointments" ? <Calendar className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
-              {t(k === "appointments" ? "appointments" : "manageServices")}
+              {k === "appointments" ? <Calendar className="h-4 w-4" /> : k === "services" ? <Settings className="h-4 w-4" /> : k === "hours" ? <Clock className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+              {t(k === "appointments" ? "appointments" : k === "services" ? "manageServices" : k === "hours" ? "hours" : "blocks")}
             </button>
           ))}
         </div>
 
         <div className="mt-6">
-          {tab === "appointments" ? <AppointmentsPanel /> : <ServicesPanel />}
+          {tab === "appointments" ? <AppointmentsPanel /> : tab === "services" ? <ServicesPanel /> : tab === "hours" ? <HoursPanel /> : <BlocksPanel />}
         </div>
       </div>
     </div>
@@ -319,5 +319,139 @@ function Input({ label, value, onChange, type = "text" }: { label: string; value
       <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none focus:border-primary" />
     </label>
+  );
+}
+
+type Hours = { id: string; day_of_week: number; is_closed: boolean; open_time: string; close_time: string; slot_step_minutes: number };
+
+function HoursPanel() {
+  const { t, lang } = useLang();
+  const qc = useQueryClient();
+  const { data = [] } = useQuery({
+    queryKey: ["business-hours"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("business_hours").select("*").order("day_of_week");
+      if (error) throw error;
+      return data as Hours[];
+    },
+  });
+
+  async function update(h: Hours, patch: Partial<Hours>) {
+    const { error } = await supabase.from("business_hours").update(patch).eq("id", h.id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["business-hours"] });
+    qc.invalidateQueries({ queryKey: ["slots"] });
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground">{lang === "ar" ? "حدّدي ساعات عمل كل يوم. العميلات يرين فقط الأوقات الفارغة ضمن هذه الساعات." : "קבעי שעות פעילות יומיות. הלקוחות יראו רק זמנים פנויים בתוך הטווח."}</p>
+      {data.map((h) => (
+        <div key={h.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4">
+          <div className="w-20 font-bold">{t(`day${h.day_of_week}` as never)}</div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={!h.is_closed} onChange={(e) => update(h, { is_closed: !e.target.checked })} />
+            <span>{h.is_closed ? t("closed") : t("open")}</span>
+          </label>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t("from")}</span>
+            <input type="time" disabled={h.is_closed} value={h.open_time.slice(0,5)} onChange={(e) => update(h, { open_time: e.target.value })}
+              className="rounded-lg border border-border bg-background px-2 py-1 disabled:opacity-40" />
+            <span className="text-muted-foreground">{t("to")}</span>
+            <input type="time" disabled={h.is_closed} value={h.close_time.slice(0,5)} onChange={(e) => update(h, { close_time: e.target.value })}
+              className="rounded-lg border border-border bg-background px-2 py-1 disabled:opacity-40" />
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t("step")}</span>
+            <input type="number" min={5} step={5} disabled={h.is_closed} value={h.slot_step_minutes}
+              onChange={(e) => update(h, { slot_step_minutes: Number(e.target.value) || 30 })}
+              className="w-20 rounded-lg border border-border bg-background px-2 py-1 disabled:opacity-40" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type Block = { id: string; start_at: string; end_at: string; reason: string | null };
+
+function BlocksPanel() {
+  const { t, lang } = useLang();
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ date: "", start: "", end: "", reason: "" });
+
+  const { data = [] } = useQuery({
+    queryKey: ["blocked-slots"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("blocked_slots")
+        .select("*").gte("end_at", new Date().toISOString())
+        .order("start_at");
+      if (error) throw error;
+      return data as Block[];
+    },
+  });
+
+  async function add() {
+    if (!form.date || !form.start || !form.end) return toast.error(t("required"));
+    const start = new Date(`${form.date}T${form.start}:00`);
+    const end = new Date(`${form.date}T${form.end}:00`);
+    if (end <= start) return toast.error(lang === "ar" ? "نهاية بعد البداية" : "סיום אחרי התחלה");
+    const { error } = await supabase.from("blocked_slots").insert({
+      start_at: start.toISOString(), end_at: end.toISOString(),
+      reason: form.reason.trim() || null,
+    });
+    if (error) return toast.error(error.message);
+    setForm({ date: "", start: "", end: "", reason: "" });
+    qc.invalidateQueries({ queryKey: ["blocked-slots"] });
+    qc.invalidateQueries({ queryKey: ["slots"] });
+    toast.success(t("success"));
+  }
+
+  async function remove(id: string) {
+    const { error } = await supabase.from("blocked_slots").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["blocked-slots"] });
+    qc.invalidateQueries({ queryKey: ["slots"] });
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <h3 className="font-bold mb-3">{t("addBlock")}</h3>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Input label={t("date")} type="date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
+          <Input label={t("from")} type="time" value={form.start} onChange={(v) => setForm({ ...form, start: v })} />
+          <Input label={t("to")} type="time" value={form.end} onChange={(v) => setForm({ ...form, end: v })} />
+          <Input label={t("reason")} value={form.reason} onChange={(v) => setForm({ ...form, reason: v })} />
+        </div>
+        <button onClick={add} className="mt-3 flex items-center gap-2 rounded-xl px-4 py-2 font-bold text-primary-foreground" style={{ background: "var(--gradient-primary)" }}>
+          <Plus className="h-4 w-4" />{t("add")}
+        </button>
+        <p className="mt-2 text-xs text-muted-foreground">{today}</p>
+      </div>
+
+      {data.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
+          {lang === "ar" ? "لا توجد أوقات محجوبة" : "אין זמנים חסומים"}
+        </div>
+      ) : data.map((b) => {
+        const s = new Date(b.start_at), e = new Date(b.end_at);
+        return (
+          <div key={b.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
+            <div>
+              <div className="font-medium">
+                {s.toLocaleDateString(lang === "ar" ? "ar" : "he")} · {s.toLocaleTimeString(lang === "ar" ? "ar" : "he", { hour: "2-digit", minute: "2-digit" })} — {e.toLocaleTimeString(lang === "ar" ? "ar" : "he", { hour: "2-digit", minute: "2-digit" })}
+              </div>
+              {b.reason && <div className="text-sm text-muted-foreground">{b.reason}</div>}
+            </div>
+            <button onClick={() => remove(b.id)} className="rounded-lg border border-border p-1.5 text-destructive hover:bg-destructive/10">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
   );
 }

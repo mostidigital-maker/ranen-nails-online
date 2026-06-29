@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLang, RENIN_PHONE } from "@/lib/i18n";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MapPin, Clock, Phone, Sparkles, Calendar, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { getAvailableSlots } from "@/lib/availability";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -130,6 +131,7 @@ function Index() {
 
 function BookingForm({ services }: { services: Service[] }) {
   const { t, lang } = useLang();
+  const qc = useQueryClient();
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -140,6 +142,7 @@ function BookingForm({ services }: { services: Service[] }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const selectedService = useMemo(() => services.find((s) => s.id === form.serviceId), [services, form.serviceId]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -186,6 +189,7 @@ function BookingForm({ services }: { services: Service[] }) {
     window.open(url, "_blank");
     toast.success(t("bookingSent"));
     setSuccess(true);
+    qc.invalidateQueries({ queryKey: ["slots"] });
     setForm({ name: "", phone: "", serviceId: "", date: "", time: "", notes: "" });
   }
 
@@ -220,7 +224,7 @@ function BookingForm({ services }: { services: Service[] }) {
             <select
               className="input"
               value={form.serviceId}
-              onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
+              onChange={(e) => setForm({ ...form, serviceId: e.target.value, time: "" })}
               required
             >
               <option value="">{t("selectService")}</option>
@@ -238,17 +242,16 @@ function BookingForm({ services }: { services: Service[] }) {
                 min={today}
                 className="input"
                 value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                onChange={(e) => setForm({ ...form, date: e.target.value, time: "" })}
                 required
               />
             </Field>
             <Field label={t("time")}>
-              <input
-                type="time"
-                className="input"
+              <SlotPicker
+                date={form.date}
+                duration={selectedService?.duration_minutes || 0}
                 value={form.time}
-                onChange={(e) => setForm({ ...form, time: e.target.value })}
-                required
+                onChange={(v) => setForm({ ...form, time: v })}
               />
             </Field>
           </div>
@@ -302,5 +305,30 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="mb-1.5 block text-sm font-medium">{label}</span>
       {children}
     </label>
+  );
+}
+
+function SlotPicker({ date, duration, value, onChange }: { date: string; duration: number; value: string; onChange: (v: string) => void }) {
+  const { t } = useLang();
+  const enabled = !!date && !!duration;
+  const { data, isLoading } = useQuery({
+    queryKey: ["slots", date, duration],
+    queryFn: () => getAvailableSlots(date, duration),
+    enabled,
+    staleTime: 30_000,
+  });
+
+  if (!enabled) return <div className="input flex items-center text-sm text-muted-foreground">{t("pickDateService")}</div>;
+  if (isLoading) return <div className="input flex items-center text-sm text-muted-foreground">{t("loadingSlots")}</div>;
+  if (data?.closed) return <div className="input flex items-center text-sm text-muted-foreground">{t("closedDay")}</div>;
+  if (!data?.slots.length) return <div className="input flex items-center text-sm text-muted-foreground">{t("noSlots")}</div>;
+
+  return (
+    <select className="input" value={value} onChange={(e) => onChange(e.target.value)} required>
+      <option value="">{t("availableTimes")}</option>
+      {data.slots.map((s) => (
+        <option key={s.value} value={s.value}>{s.label}</option>
+      ))}
+    </select>
   );
 }
