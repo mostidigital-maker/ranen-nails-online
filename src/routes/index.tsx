@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLang, RENIN_PHONE } from "@/lib/i18n";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MapPin, Clock, Phone, Sparkles, Calendar, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { getAvailableSlots } from "@/lib/availability";
 
 export const Route = createFileRoute("/")({
   head: () => ({
