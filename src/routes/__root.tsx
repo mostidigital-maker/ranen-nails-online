@@ -50,8 +50,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "رنين نيلز | Ranen Nails - كفر دير الأسد" },
-      { name: "description", content: "صالون رنين نيلز للعناية بالأظافر والحواجب في كفر دير الأسد. احجزي موعدك أونلاين." },
+      { title: "Ranen Nails -  دير الأسد" },
+      { name: "description", content: "صالون رنين نيلز للعناية بالأظافر والحواجب في دير الأسد. احجزي موعدك أونلاين." },
+      { property: "og:title", content: "Ranen Nails -  دير الأسد" },
+      { name: "twitter:title", content: "Ranen Nails -  دير الأسد" },
+      { property: "og:description", content: "صالون رنين نيلز للعناية بالأظافر والحواجب في دير الأسد. احجزي موعدك أونلاين." },
+      { name: "twitter:description", content: "صالون رنين نيلز للعناية بالأظافر والحواجب في دير الأسد. احجزي موعدك أونلاين." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/77fce35f-cd25-4bf9-adf8-51e897e1d37e/id-preview-1a78919d--8ace64fb-ff36-40b0-babc-1c169dbd5dd8.lovable.app-1782728255067.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/77fce35f-cd25-4bf9-adf8-51e897e1d37e/id-preview-1a78919d--8ace64fb-ff36-40b0-babc-1c169dbd5dd8.lovable.app-1782728255067.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:type", content: "website" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
