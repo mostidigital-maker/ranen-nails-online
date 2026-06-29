@@ -141,6 +141,7 @@ function BookingForm({ services }: { services: Service[] }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const selectedService = useMemo(() => services.find((s) => s.id === form.serviceId), [services, form.serviceId]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
