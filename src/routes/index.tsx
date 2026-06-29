@@ -189,6 +189,7 @@ function BookingForm({ services }: { services: Service[] }) {
     window.open(url, "_blank");
     toast.success(t("bookingSent"));
     setSuccess(true);
+    qc.invalidateQueries({ queryKey: ["slots"] });
     setForm({ name: "", phone: "", serviceId: "", date: "", time: "", notes: "" });
   }
 
