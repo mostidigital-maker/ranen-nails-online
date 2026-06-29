@@ -37,7 +37,16 @@ function AuthPage() {
           });
 
       if (error) {
-        toast.error(error.message);
+        const errorCode = (error as { code?: string }).code;
+        if (errorCode === "weak_password") {
+          toast.error(
+            lang === "ar"
+              ? "كلمة المرور التي اخترتها معروفة أو سهلة التخمين. اختاري كلمة مرور جديدة وطويلة وغير مستخدمة من قبل."
+              : "הסיסמה שבחרת מוכרת כחלשה או קלה לניחוש. בחרי סיסמה חדשה, ארוכה ושלא השתמשת בה בעבר."
+          );
+        } else {
+          toast.error(error.message);
+        }
         return;
       }
 
@@ -73,10 +82,17 @@ function AuthPage() {
               className="w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-primary"
             />
             <input
-              type="password" required minLength={6} placeholder={t("password")}
+              type="password" required minLength={12} placeholder={t("password")} autoComplete={mode === "signin" ? "current-password" : "new-password"}
               value={password} onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-primary"
             />
+            {mode === "signup" && (
+              <p className="text-xs leading-5 text-muted-foreground">
+                {lang === "ar"
+                  ? "استخدمي 12 حرفاً على الأقل، ويفضّل جملة خاصة غير مستخدمة في أي موقع آخر."
+                  : "השתמשי לפחות ב־12 תווים, עדיף משפט אישי שלא השתמשת בו באף אתר אחר."}
+              </p>
+            )}
             <button
               disabled={loading}
               className="w-full rounded-xl py-3 font-bold text-primary-foreground disabled:opacity-60"
