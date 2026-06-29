@@ -131,6 +131,7 @@ function Index() {
 
 function BookingForm({ services }: { services: Service[] }) {
   const { t, lang } = useLang();
+  const qc = useQueryClient();
   const [form, setForm] = useState({
     name: "",
     phone: "",
