@@ -36,7 +36,7 @@ type Service = {
 function AdminPage() {
   const { t, lang } = useLang();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"appointments" | "services">("appointments");
+  const [tab, setTab] = useState<"appointments" | "services" | "hours" | "blocks">("appointments");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const qc = useQueryClient();
 
