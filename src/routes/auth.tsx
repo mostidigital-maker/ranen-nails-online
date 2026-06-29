@@ -27,18 +27,31 @@ function AuthPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const fn = mode === "signin" ? supabase.auth.signInWithPassword : supabase.auth.signUp;
-    const opts = mode === "signup"
-      ? { email, password, options: { emailRedirectTo: window.location.origin + "/admin" } }
-      : { email, password };
-    const { error } = await fn(opts as any);
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const { data, error } = mode === "signin"
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: window.location.origin + "/admin" },
+          });
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success(t("success"));
+      if (data.session || mode === "signin") {
+        await navigate({ to: "/admin" });
+      } else {
+        toast.message(lang === "ar" ? "افتحي بريدك لتأكيد الحساب" : "פתחי את המייל לאישור החשבון");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : (lang === "ar" ? "حدث خطأ في الدخول" : "אירעה שגיאה בהתחברות"));
+    } finally {
+      setLoading(false);
     }
-    toast.success(t("success"));
-    navigate({ to: "/admin" });
   }
 
   return (
