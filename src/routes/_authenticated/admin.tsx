@@ -88,21 +88,21 @@ function AdminPage() {
           </div>
         </div>
 
-        <div className="mt-6 inline-flex rounded-xl border border-border bg-card p-1">
-          {(["appointments", "services"] as const).map((k) => (
+        <div className="mt-6 inline-flex flex-wrap rounded-xl border border-border bg-card p-1">
+          {(["appointments", "services", "hours", "blocks"] as const).map((k) => (
             <button
               key={k}
               onClick={() => setTab(k)}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >
-              {k === "appointments" ? <Calendar className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
-              {t(k === "appointments" ? "appointments" : "manageServices")}
+              {k === "appointments" ? <Calendar className="h-4 w-4" /> : k === "services" ? <Settings className="h-4 w-4" /> : k === "hours" ? <Clock className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+              {t(k === "appointments" ? "appointments" : k === "services" ? "manageServices" : k === "hours" ? "hours" : "blocks")}
             </button>
           ))}
         </div>
 
         <div className="mt-6">
-          {tab === "appointments" ? <AppointmentsPanel /> : <ServicesPanel />}
+          {tab === "appointments" ? <AppointmentsPanel /> : tab === "services" ? <ServicesPanel /> : tab === "hours" ? <HoursPanel /> : <BlocksPanel />}
         </div>
       </div>
     </div>
