@@ -124,6 +124,18 @@ function AppointmentsPanel() {
     },
   });
 
+  useEffect(() => {
+    const channel = supabase
+      .channel("appointments-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => {
+        qc.invalidateQueries({ queryKey: ["appointments"] });
+        qc.invalidateQueries({ queryKey: ["slots"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [qc]);
+
+
   async function updateStatus(a: Appointment, status: "confirmed" | "cancelled") {
     const { error } = await supabase.from("appointments").update({ status }).eq("id", a.id);
     if (error) return toast.error(error.message);
