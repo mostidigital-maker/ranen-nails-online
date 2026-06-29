@@ -1,0 +1,90 @@
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useLang } from "@/lib/i18n";
+import { SiteHeader } from "@/components/SiteHeader";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/auth")({
+  head: () => ({ meta: [{ title: "تسجيل دخول | رنين نيلز" }, { name: "robots", content: "noindex" }] }),
+  component: AuthPage,
+});
+
+function AuthPage() {
+  const { t, lang } = useLang();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) navigate({ to: "/admin" });
+    });
+  }, [navigate]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    const fn = mode === "signin" ? supabase.auth.signInWithPassword : supabase.auth.signUp;
+    const opts = mode === "signup"
+      ? { email, password, options: { emailRedirectTo: window.location.origin + "/admin" } }
+      : { email, password };
+    const { error } = await fn(opts as any);
+    setLoading(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(t("success"));
+    navigate({ to: "/admin" });
+  }
+
+  return (
+    <div className="min-h-screen">
+      <SiteHeader />
+      <div className="mx-auto max-w-md px-4 py-12">
+        <div className="rounded-3xl border border-border bg-card p-8 shadow-sm">
+          <h1 className="text-2xl font-bold text-center">{t("admin")}</h1>
+          <p className="mt-1 text-center text-sm text-muted-foreground">
+            {mode === "signin"
+              ? (lang === "ar" ? "ادخلي إلى لوحة التحكم" : "התחברות לפאנל ניהול")
+              : (lang === "ar" ? "إنشاء حساب المالك (مرة واحدة)" : "יצירת חשבון בעלים (פעם אחת)")}
+          </p>
+
+          <form onSubmit={submit} className="mt-6 space-y-3">
+            <input
+              type="email" required placeholder={t("email")}
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-primary"
+            />
+            <input
+              type="password" required minLength={6} placeholder={t("password")}
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-primary"
+            />
+            <button
+              disabled={loading}
+              className="w-full rounded-xl py-3 font-bold text-primary-foreground disabled:opacity-60"
+              style={{ background: "var(--gradient-primary)" }}
+            >
+              {loading ? "..." : (mode === "signin" ? t("login") : (lang === "ar" ? "إنشاء حساب" : "צור חשבון"))}
+            </button>
+          </form>
+
+          <button
+            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+            className="mt-4 w-full text-center text-sm text-muted-foreground hover:text-primary"
+          >
+            {mode === "signin"
+              ? (lang === "ar" ? "أول مرة؟ أنشئي حساباً" : "פעם ראשונה? צרי חשבון")
+              : (lang === "ar" ? "لدي حساب — تسجيل دخول" : "יש לי חשבון — התחברות")}
+          </button>
+
+          <Link to="/" className="mt-4 block text-center text-sm text-muted-foreground hover:text-primary">← {lang === "ar" ? "العودة للموقع" : "חזרה לאתר"}</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
