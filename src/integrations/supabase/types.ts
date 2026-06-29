@@ -64,6 +64,60 @@ export type Database = {
           },
         ]
       }
+      blocked_slots: {
+        Row: {
+          created_at: string
+          end_at: string
+          id: string
+          reason: string | null
+          start_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_at: string
+          id?: string
+          reason?: string | null
+          start_at: string
+        }
+        Update: {
+          created_at?: string
+          end_at?: string
+          id?: string
+          reason?: string | null
+          start_at?: string
+        }
+        Relationships: []
+      }
+      business_hours: {
+        Row: {
+          close_time: string
+          day_of_week: number
+          id: string
+          is_closed: boolean
+          open_time: string
+          slot_step_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          close_time?: string
+          day_of_week: number
+          id?: string
+          is_closed?: boolean
+          open_time?: string
+          slot_step_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          close_time?: string
+          day_of_week?: number
+          id?: string
+          is_closed?: boolean
+          open_time?: string
+          slot_step_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       services: {
         Row: {
           created_at: string
