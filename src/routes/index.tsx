@@ -305,3 +305,28 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
+
+function SlotPicker({ date, duration, value, onChange }: { date: string; duration: number; value: string; onChange: (v: string) => void }) {
+  const { t } = useLang();
+  const enabled = !!date && !!duration;
+  const { data, isLoading } = useQuery({
+    queryKey: ["slots", date, duration],
+    queryFn: () => getAvailableSlots(date, duration),
+    enabled,
+    staleTime: 30_000,
+  });
+
+  if (!enabled) return <div className="input flex items-center text-sm text-muted-foreground">{t("pickDateService")}</div>;
+  if (isLoading) return <div className="input flex items-center text-sm text-muted-foreground">{t("loadingSlots")}</div>;
+  if (data?.closed) return <div className="input flex items-center text-sm text-muted-foreground">{t("closedDay")}</div>;
+  if (!data?.slots.length) return <div className="input flex items-center text-sm text-muted-foreground">{t("noSlots")}</div>;
+
+  return (
+    <select className="input" value={value} onChange={(e) => onChange(e.target.value)} required>
+      <option value="">{t("availableTimes")}</option>
+      {data.slots.map((s) => (
+        <option key={s.value} value={s.value}>{s.label}</option>
+      ))}
+    </select>
+  );
+}
