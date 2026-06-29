@@ -222,7 +222,7 @@ function BookingForm({ services }: { services: Service[] }) {
             <select
               className="input"
               value={form.serviceId}
-              onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
+              onChange={(e) => setForm({ ...form, serviceId: e.target.value, time: "" })}
               required
             >
               <option value="">{t("selectService")}</option>
