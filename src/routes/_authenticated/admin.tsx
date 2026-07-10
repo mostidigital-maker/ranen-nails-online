@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLang, RENIN_PHONE } from "@/lib/i18n";
 import { SiteHeader } from "@/components/SiteHeader";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Trash2, Plus, MessageCircle, Calendar, Settings, LogOut, Pencil, Clock, Ban } from "lucide-react";
+import { CheckCircle2, XCircle, Trash2, Plus, MessageCircle, Calendar, Settings, LogOut, Pencil, Clock, Ban, Image as ImageIcon, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "لوحة التحكم | رنين نيلز" }, { name: "robots", content: "noindex" }] }),
