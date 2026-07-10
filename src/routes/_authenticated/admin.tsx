@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLang, RENIN_PHONE } from "@/lib/i18n";
 import { SiteHeader } from "@/components/SiteHeader";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Trash2, Plus, MessageCircle, Calendar, Settings, LogOut, Pencil, Clock, Ban } from "lucide-react";
+import { CheckCircle2, XCircle, Trash2, Plus, MessageCircle, Calendar, Settings, LogOut, Pencil, Clock, Ban, Image as ImageIcon, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "لوحة التحكم | رنين نيلز" }, { name: "robots", content: "noindex" }] }),
@@ -36,7 +36,7 @@ type Service = {
 function AdminPage() {
   const { t, lang } = useLang();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"appointments" | "services" | "hours" | "blocks">("appointments");
+  const [tab, setTab] = useState<"appointments" | "services" | "hours" | "blocks" | "gallery">("appointments");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const qc = useQueryClient();
 
@@ -89,20 +89,20 @@ function AdminPage() {
         </div>
 
         <div className="mt-6 inline-flex flex-wrap rounded-xl border border-border bg-card p-1">
-          {(["appointments", "services", "hours", "blocks"] as const).map((k) => (
+          {(["appointments", "services", "gallery", "hours", "blocks"] as const).map((k) => (
             <button
               key={k}
               onClick={() => setTab(k)}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >
-              {k === "appointments" ? <Calendar className="h-4 w-4" /> : k === "services" ? <Settings className="h-4 w-4" /> : k === "hours" ? <Clock className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-              {t(k === "appointments" ? "appointments" : k === "services" ? "manageServices" : k === "hours" ? "hours" : "blocks")}
+              {k === "appointments" ? <Calendar className="h-4 w-4" /> : k === "services" ? <Settings className="h-4 w-4" /> : k === "gallery" ? <ImageIcon className="h-4 w-4" /> : k === "hours" ? <Clock className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+              {t(k === "appointments" ? "appointments" : k === "services" ? "manageServices" : k === "gallery" ? "gallery" : k === "hours" ? "hours" : "blocks")}
             </button>
           ))}
         </div>
 
         <div className="mt-6">
-          {tab === "appointments" ? <AppointmentsPanel /> : tab === "services" ? <ServicesPanel /> : tab === "hours" ? <HoursPanel /> : <BlocksPanel />}
+          {tab === "appointments" ? <AppointmentsPanel /> : tab === "services" ? <ServicesPanel /> : tab === "gallery" ? <GalleryPanel /> : tab === "hours" ? <HoursPanel /> : <BlocksPanel />}
         </div>
       </div>
     </div>
@@ -464,6 +464,141 @@ function BlocksPanel() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+type GalleryRow = {
+  id: string;
+  media_type: "image" | "video";
+  storage_path: string | null;
+  media_url: string;
+  caption: string | null;
+  sort_order: number;
+  is_active: boolean;
+};
+
+function GalleryPanel() {
+  const { t, lang } = useLang();
+  const qc = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+  const [caption, setCaption] = useState("");
+
+  const { data = [] } = useQuery({
+    queryKey: ["gallery-admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("gallery_items")
+        .select("*")
+        .order("sort_order")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const rows = (data || []) as GalleryRow[];
+      await Promise.all(rows.map(async (r) => {
+        if (r.storage_path) {
+          const { data: signed } = await supabase.storage.from("gallery").createSignedUrl(r.storage_path, 60 * 60);
+          if (signed?.signedUrl) r.media_url = signed.signedUrl;
+        }
+      }));
+      return rows;
+    },
+  });
+
+  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const isVideo = file.type.startsWith("video/");
+    const isImage = file.type.startsWith("image/");
+    if (!isVideo && !isImage) return toast.error(lang === "ar" ? "اختاري صورة أو فيديو" : "בחרי תמונה או סרטון");
+    if (file.size > 50 * 1024 * 1024) return toast.error(lang === "ar" ? "الحجم الأقصى 50MB" : "מקסימום 50MB");
+
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("gallery").upload(path, file, { contentType: file.type });
+      if (upErr) throw upErr;
+      const { error: insErr } = await supabase.from("gallery_items").insert({
+        media_type: isVideo ? "video" : "image",
+        storage_path: path,
+        media_url: path,
+        caption: caption.trim() || null,
+        sort_order: data.length,
+      });
+      if (insErr) throw insErr;
+      setCaption("");
+      qc.invalidateQueries({ queryKey: ["gallery-admin"] });
+      qc.invalidateQueries({ queryKey: ["gallery-public"] });
+      toast.success(t("success"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("error"));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function toggleActive(r: GalleryRow) {
+    const { error } = await supabase.from("gallery_items").update({ is_active: !r.is_active }).eq("id", r.id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["gallery-admin"] });
+    qc.invalidateQueries({ queryKey: ["gallery-public"] });
+  }
+
+  async function remove(r: GalleryRow) {
+    if (!confirm(lang === "ar" ? "حذف العنصر؟" : "למחוק את הפריט?")) return;
+    if (r.storage_path) {
+      await supabase.storage.from("gallery").remove([r.storage_path]);
+    }
+    const { error } = await supabase.from("gallery_items").delete().eq("id", r.id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["gallery-admin"] });
+    qc.invalidateQueries({ queryKey: ["gallery-public"] });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <h3 className="font-bold mb-3 flex items-center gap-2"><Upload className="h-4 w-4" />{t("uploadMedia")}</h3>
+        <Input label={t("caption")} value={caption} onChange={setCaption} />
+        <label className={`mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold text-primary-foreground ${uploading ? "opacity-60" : ""}`} style={{ background: "var(--gradient-primary)" }}>
+          <Upload className="h-4 w-4" />
+          {uploading ? t("uploading") : t("uploadMedia")}
+          <input type="file" accept="image/*,video/*" className="hidden" disabled={uploading} onChange={onUpload} />
+        </label>
+        <p className="mt-2 text-xs text-muted-foreground">{lang === "ar" ? "الحد الأقصى 50MB لكل ملف" : "מקסימום 50MB לקובץ"}</p>
+      </div>
+
+      {data.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
+          {t("galleryEmpty")}
+        </div>
+      ) : (
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+          {data.map((r) => (
+            <div key={r.id} className={`overflow-hidden rounded-2xl border bg-card ${r.is_active ? "border-border" : "border-destructive/40 opacity-70"}`}>
+              <div className="aspect-square bg-muted">
+                {r.media_type === "video" ? (
+                  <video src={r.media_url} controls className="h-full w-full object-cover" />
+                ) : (
+                  <img src={r.media_url} alt={r.caption || ""} className="h-full w-full object-cover" />
+                )}
+              </div>
+              <div className="p-2 text-xs">
+                <div className="truncate">{r.caption || <span className="text-muted-foreground">{t(r.media_type)}</span>}</div>
+                <div className="mt-2 flex gap-1">
+                  <button onClick={() => toggleActive(r)} className="flex-1 rounded-lg border border-border py-1 hover:border-primary">
+                    {r.is_active ? (lang === "ar" ? "إخفاء" : "הסתר") : (lang === "ar" ? "إظهار" : "הצג")}
+                  </button>
+                  <button onClick={() => remove(r)} className="rounded-lg border border-border p-1.5 text-destructive hover:bg-destructive/10">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

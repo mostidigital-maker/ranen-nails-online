@@ -82,6 +82,13 @@ const T = {
   day4: { ar: "الخميس", he: "חמישי" },
   day5: { ar: "الجمعة", he: "שישי" },
   day6: { ar: "السبت", he: "שבת" },
+  gallery: { ar: "معرض الأعمال", he: "גלריית עבודות" },
+  galleryEmpty: { ar: "لا توجد صور أو فيديوهات بعد", he: "אין תמונות או סרטונים עדיין" },
+  uploadMedia: { ar: "رفع صورة أو فيديو", he: "העלאת תמונה או סרטון" },
+  uploading: { ar: "جاري الرفع...", he: "מעלה..." },
+  caption: { ar: "وصف (اختياري)", he: "תיאור (לא חובה)" },
+  image: { ar: "صورة", he: "תמונה" },
+  video: { ar: "فيديو", he: "סרטון" },
 } satisfies Dict;
 
 export type TKey = keyof typeof T;
