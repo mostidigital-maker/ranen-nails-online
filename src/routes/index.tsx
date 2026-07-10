@@ -235,26 +235,24 @@ function BookingForm({ services }: { services: Service[] }) {
               ))}
             </select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("date")}>
-              <input
-                type="date"
-                min={today}
-                className="input"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value, time: "" })}
-                required
-              />
-            </Field>
-            <Field label={t("time")}>
-              <SlotPicker
-                date={form.date}
-                duration={selectedService?.duration_minutes || 0}
-                value={form.time}
-                onChange={(v) => setForm({ ...form, time: v })}
-              />
-            </Field>
-          </div>
+          <Field label={t("date")}>
+            <input
+              type="date"
+              min={today}
+              className="input"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value, time: "" })}
+              required
+            />
+          </Field>
+          <Field label={t("time")}>
+            <SlotPicker
+              date={form.date}
+              duration={selectedService?.duration_minutes || 0}
+              value={form.time}
+              onChange={(v) => setForm({ ...form, time: v })}
+            />
+          </Field>
           <Field label={t("notes")}>
             <textarea
               className="input min-h-[80px]"
