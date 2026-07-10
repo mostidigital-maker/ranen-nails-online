@@ -352,3 +352,58 @@ function SlotPicker({ date, duration, value, onChange }: { date: string; duratio
     </div>
   );
 }
+
+type GalleryItem = { id: string; media_type: "image" | "video"; storage_path: string | null; media_url: string; caption: string | null };
+
+function GallerySection() {
+  const { t, lang } = useLang();
+  const { data = [] } = useQuery({
+    queryKey: ["gallery-public"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("gallery_items")
+        .select("id,media_type,storage_path,media_url,caption")
+        .eq("is_active", true)
+        .order("sort_order")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const items = (data || []) as GalleryItem[];
+      // Resolve signed URLs for stored items
+      await Promise.all(items.map(async (it) => {
+        if (it.storage_path) {
+          const { data: signed } = await supabase.storage.from("gallery").createSignedUrl(it.storage_path, 60 * 60 * 24 * 7);
+          if (signed?.signedUrl) it.media_url = signed.signedUrl;
+        }
+      }));
+      return items;
+    },
+  });
+
+  if (!data.length) return null;
+
+  return (
+    <section id="gallery" className="px-4 py-12">
+      <div className="mx-auto max-w-5xl">
+        <h2 className="text-3xl font-bold text-center mb-2">{t("gallery")}</h2>
+        <div className="mx-auto mb-8 h-1 w-16 rounded-full" style={{ background: "var(--gradient-primary)" }} />
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+          {data.map((it) => (
+            <div key={it.id} className="group relative aspect-square overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              {it.media_type === "video" ? (
+                <video src={it.media_url} controls playsInline className="h-full w-full object-cover" />
+              ) : (
+                <img src={it.media_url} alt={it.caption || ""} loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" />
+              )}
+              {it.caption && (
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-xs text-white" dir={lang === "ar" ? "rtl" : "rtl"}>
+                  {it.caption}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
