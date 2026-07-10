@@ -11,7 +11,7 @@ import { getAvailableSlots } from "@/lib/availability";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "رنين نيلز | Ranen Nails - كفر دير الأسد" },
+      { title: "رنين نيلز | Ranen Nails - دير الاسد" },
       { name: "description", content: "صالون رنين نيلز للعناية بالأظافر والحواجب. بناء أظافر، لاك جل، أكريل، تصميم حواجب. احجزي موعدك أونلاين." },
     ],
   }),
