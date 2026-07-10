@@ -235,26 +235,24 @@ function BookingForm({ services }: { services: Service[] }) {
               ))}
             </select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t("date")}>
-              <input
-                type="date"
-                min={today}
-                className="input"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value, time: "" })}
-                required
-              />
-            </Field>
-            <Field label={t("time")}>
-              <SlotPicker
-                date={form.date}
-                duration={selectedService?.duration_minutes || 0}
-                value={form.time}
-                onChange={(v) => setForm({ ...form, time: v })}
-              />
-            </Field>
-          </div>
+          <Field label={t("date")}>
+            <input
+              type="date"
+              min={today}
+              className="input"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value, time: "" })}
+              required
+            />
+          </Field>
+          <Field label={t("time")}>
+            <SlotPicker
+              date={form.date}
+              duration={selectedService?.duration_minutes || 0}
+              value={form.time}
+              onChange={(v) => setForm({ ...form, time: v })}
+            />
+          </Field>
           <Field label={t("notes")}>
             <textarea
               className="input min-h-[80px]"
@@ -318,17 +316,35 @@ function SlotPicker({ date, duration, value, onChange }: { date: string; duratio
     staleTime: 30_000,
   });
 
-  if (!enabled) return <div className="input flex items-center text-sm text-muted-foreground">{t("pickDateService")}</div>;
-  if (isLoading) return <div className="input flex items-center text-sm text-muted-foreground">{t("loadingSlots")}</div>;
-  if (data?.closed) return <div className="input flex items-center text-sm text-muted-foreground">{t("closedDay")}</div>;
-  if (!data?.slots.length) return <div className="input flex items-center text-sm text-muted-foreground">{t("noSlots")}</div>;
+  if (!enabled) return <div className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("pickDateService")}</div>;
+  if (isLoading) return <div className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("loadingSlots")}</div>;
+  if (data?.closed) return <div className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("closedDay")}</div>;
+  if (!data?.slots.length) return <div className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("noSlots")}</div>;
 
   return (
-    <select className="input" value={value} onChange={(e) => onChange(e.target.value)} required>
-      <option value="">{t("availableTimes")}</option>
-      {data.slots.map((s) => (
-        <option key={s.value} value={s.value}>{s.label}</option>
-      ))}
-    </select>
+    <div className="rounded-xl border border-border bg-background p-2">
+      <div className="mb-2 text-xs font-medium text-muted-foreground text-center">{t("availableTimes")}</div>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+        {data.slots.map((s) => {
+          const selected = value === s.value;
+          return (
+            <button
+              key={s.value}
+              type="button"
+              onClick={() => onChange(s.value)}
+              aria-pressed={selected}
+              className={`rounded-lg px-2 py-2 text-sm font-semibold transition ${
+                selected
+                  ? "text-primary-foreground shadow-md scale-[1.03]"
+                  : "border border-border bg-card hover:border-primary hover:text-primary"
+              }`}
+              style={selected ? { background: "var(--gradient-primary)" } : undefined}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
