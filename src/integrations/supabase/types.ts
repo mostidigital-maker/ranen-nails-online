@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      about_cards: {
+        Row: {
+          created_at: string
+          icon: string
+          id: string
+          is_active: boolean
+          sort_order: number
+          text_ar: string
+          text_he: string
+          title_ar: string
+          title_he: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          text_ar: string
+          text_he: string
+          title_ar: string
+          title_he: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          text_ar?: string
+          text_he?: string
+          title_ar?: string
+          title_he?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           appointment_at: string
@@ -118,6 +157,42 @@ export type Database = {
         }
         Relationships: []
       }
+      faqs: {
+        Row: {
+          answer_ar: string
+          answer_he: string
+          created_at: string
+          id: string
+          is_active: boolean
+          question_ar: string
+          question_he: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          answer_ar: string
+          answer_he: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          question_ar: string
+          question_he: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          answer_ar?: string
+          answer_he?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          question_ar?: string
+          question_he?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gallery_items: {
         Row: {
           caption: string | null
@@ -192,6 +267,168 @@ export type Database = {
           name_he?: string
           price?: number
           sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          about_text_ar: string
+          about_text_he: string
+          about_title_ar: string
+          about_title_he: string
+          address_ar: string
+          address_he: string
+          business_name_ar: string
+          business_name_he: string
+          created_at: string
+          footer_text_ar: string
+          footer_text_he: string
+          hero_image_url: string | null
+          hero_subtitle_ar: string
+          hero_subtitle_he: string
+          hero_title_ar: string
+          hero_title_he: string
+          hours_text_ar: string
+          hours_text_he: string
+          id: number
+          instagram: string | null
+          logo_url: string | null
+          maps_url: string | null
+          phone: string
+          tagline_ar: string
+          tagline_he: string
+          updated_at: string
+          whatsapp: string
+        }
+        Insert: {
+          about_text_ar?: string
+          about_text_he?: string
+          about_title_ar?: string
+          about_title_he?: string
+          address_ar?: string
+          address_he?: string
+          business_name_ar?: string
+          business_name_he?: string
+          created_at?: string
+          footer_text_ar?: string
+          footer_text_he?: string
+          hero_image_url?: string | null
+          hero_subtitle_ar?: string
+          hero_subtitle_he?: string
+          hero_title_ar?: string
+          hero_title_he?: string
+          hours_text_ar?: string
+          hours_text_he?: string
+          id?: number
+          instagram?: string | null
+          logo_url?: string | null
+          maps_url?: string | null
+          phone?: string
+          tagline_ar?: string
+          tagline_he?: string
+          updated_at?: string
+          whatsapp?: string
+        }
+        Update: {
+          about_text_ar?: string
+          about_text_he?: string
+          about_title_ar?: string
+          about_title_he?: string
+          address_ar?: string
+          address_he?: string
+          business_name_ar?: string
+          business_name_he?: string
+          created_at?: string
+          footer_text_ar?: string
+          footer_text_he?: string
+          hero_image_url?: string | null
+          hero_subtitle_ar?: string
+          hero_subtitle_he?: string
+          hero_title_ar?: string
+          hero_title_he?: string
+          hours_text_ar?: string
+          hours_text_he?: string
+          id?: number
+          instagram?: string | null
+          logo_url?: string | null
+          maps_url?: string | null
+          phone?: string
+          tagline_ar?: string
+          tagline_he?: string
+          updated_at?: string
+          whatsapp?: string
+        }
+        Relationships: []
+      }
+      stats: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label_ar: string
+          label_he: string
+          sort_order: number
+          suffix: string | null
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label_ar: string
+          label_he: string
+          sort_order?: number
+          suffix?: string | null
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label_ar?: string
+          label_he?: string
+          sort_order?: number
+          suffix?: string | null
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
+      testimonials: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          rating: number
+          sort_order: number
+          text_ar: string
+          text_he: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          rating?: number
+          sort_order?: number
+          text_ar: string
+          text_he: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          rating?: number
+          sort_order?: number
+          text_ar?: string
+          text_he?: string
           updated_at?: string
         }
         Relationships: []
