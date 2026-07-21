@@ -128,8 +128,9 @@ function AdminPage() {
           {tab === "hours" && <HoursPanel />}
           {tab === "blocks" && <BlocksPanel />}
         </div>
-      </div>
+      </main>
     </div>
+
   );
 }
 
