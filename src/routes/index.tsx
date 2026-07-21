@@ -159,7 +159,7 @@ function HeroSection({ bizName, tagline, address }: { bizName: string; tagline: 
         >
           <div className="relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-[2rem] border border-border shadow-2xl">
             {heroImage ? (
-              <img src={heroImage} alt={bizName} className="h-full w-full object-cover" />
+              <img src={heroImage} alt={bizName} fetchPriority="high" decoding="async" className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center"
                    style={{ background: "var(--gradient-primary)" }}>
