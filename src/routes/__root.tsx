@@ -33,7 +33,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+    <div className="flex min-h-dvh items-center justify-center px-4 text-center">
       <div>
         <h1 className="text-xl font-semibold">حدث خطأ</h1>
         <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
