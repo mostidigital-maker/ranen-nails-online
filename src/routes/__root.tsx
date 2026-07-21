@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-dvh items-center justify-center px-4">
       <div className="text-center">
         <h1 className="text-7xl font-bold">404</h1>
         <p className="mt-3 text-muted-foreground">الصفحة غير موجودة</p>
@@ -25,6 +25,7 @@ function NotFoundComponent() {
     </div>
   );
 }
+
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
