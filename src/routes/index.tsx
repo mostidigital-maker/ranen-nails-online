@@ -417,7 +417,7 @@ function GallerySection() {
           controller={{ closeOnBackdropClick: true }}
           styles={{ container: { backgroundColor: "rgba(0,0,0,.92)" } }}
         />
-        </div>
+
       </div>
     </section>
   );
