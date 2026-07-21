@@ -66,7 +66,8 @@ function AuthPage() {
   return (
     <div className="min-h-dvh">
       <SiteHeader />
-      <div className="mx-auto max-w-md px-4 py-12">
+      <main className="mx-auto max-w-md px-4 py-12">
+
         <div className="rounded-3xl border border-border bg-card p-8 shadow-sm">
           <h1 className="text-2xl font-bold text-center">{t("admin")}</h1>
           <p className="mt-1 text-center text-sm text-muted-foreground">
