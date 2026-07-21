@@ -72,21 +72,22 @@ function AdminPage() {
 
   if (isAdmin === false) {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-dvh">
         <SiteHeader />
-        <div className="mx-auto max-w-md px-4 py-16 text-center">
+        <main className="mx-auto max-w-md px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-destructive">{lang === "ar" ? "غير مصرح" : "אין הרשאה"}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{lang === "ar" ? "هذا الحساب ليس مديراً." : "החשבון אינו אדמין."}</p>
           <button onClick={signOut} className="mt-4 rounded-lg bg-primary px-4 py-2 text-primary-foreground">{t("logout")}</button>
-        </div>
+        </main>
       </div>
+
     );
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">{t("dashboard")}</h1>
           <div className="flex items-center gap-2">
@@ -127,8 +128,9 @@ function AdminPage() {
           {tab === "hours" && <HoursPanel />}
           {tab === "blocks" && <BlocksPanel />}
         </div>
-      </div>
+      </main>
     </div>
+
   );
 }
 
@@ -182,7 +184,7 @@ function AppointmentsPanel() {
     qc.invalidateQueries({ queryKey: ["appointments"] });
   }
 
-  if (isLoading) return <div className="text-center text-muted-foreground py-8">...</div>;
+  if (isLoading) return <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground" role="status" aria-live="polite">{t("loadingSlots")}</div>;
   if (!data.length) return <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">{t("noAppointments")}</div>;
 
   const statusStyle = {

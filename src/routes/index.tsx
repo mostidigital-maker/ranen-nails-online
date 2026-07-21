@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/lib/i18n";
 import { useSiteSettings } from "@/lib/site";
@@ -75,22 +76,24 @@ function Index() {
   const address = settings ? (lang === "ar" ? settings.address_ar : settings.address_he) : t("location");
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
-
-      <HeroSection bizName={bizName} tagline={tagline} address={address} />
-      <StatsSection />
-      <AboutSection />
-      <ServicesSection services={services} onBook={bookService} />
-      <GallerySection />
-      <TestimonialsSection />
-      <FaqSection />
-      <BookingForm services={services} preselectedId={preselectedService} onConsumePreselect={() => setPreselectedService("")} />
-      <ContactSection />
+      <main>
+        <HeroSection bizName={bizName} tagline={tagline} address={address} />
+        <StatsSection />
+        <AboutSection />
+        <ServicesSection services={services} onBook={bookService} />
+        <GallerySection />
+        <TestimonialsSection />
+        <FaqSection />
+        <BookingForm services={services} preselectedId={preselectedService} onConsumePreselect={() => setPreselectedService("")} />
+        <ContactSection />
+      </main>
       <SiteFooter />
     </div>
   );
 }
+
 
 /* ---------------- HERO ---------------- */
 function HeroSection({ bizName, tagline, address }: { bizName: string; tagline: string; address: string }) {
@@ -156,7 +159,7 @@ function HeroSection({ bizName, tagline, address }: { bizName: string; tagline: 
         >
           <div className="relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-[2rem] border border-border shadow-2xl">
             {heroImage ? (
-              <img src={heroImage} alt={bizName} className="h-full w-full object-cover" />
+              <img src={heroImage} alt={bizName} fetchPriority="high" decoding="async" className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center"
                    style={{ background: "var(--gradient-primary)" }}>
@@ -340,7 +343,8 @@ function ServicesSection({ services, onBook }: { services: Service[]; onBook: (i
 /* ---------------- GALLERY ---------------- */
 type GalleryItem = { id: string; media_type: "image" | "video"; storage_path: string | null; media_url: string; caption: string | null };
 function GallerySection() {
-  const { t, lang } = useLang();
+  const { t } = useLang();
+
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
 
@@ -414,7 +418,7 @@ function GallerySection() {
           controller={{ closeOnBackdropClick: true }}
           styles={{ container: { backgroundColor: "rgba(0,0,0,.92)" } }}
         />
-        <p className="sr-only">{lang}</p>
+
       </div>
     </section>
   );
@@ -535,13 +539,15 @@ function BookingForm({ services, preselectedId, onConsumePreselect }: { services
   const [success, setSuccess] = useState(false);
   const selectedService = useMemo(() => services.find((s) => s.id === form.serviceId), [services, form.serviceId]);
 
-  // handle preselection
-  useMemo(() => {
+  // handle preselection (side effect, not a memo)
+  useEffect(() => {
     if (preselectedId && preselectedId !== form.serviceId) {
       setForm((f) => ({ ...f, serviceId: preselectedId, time: "" }));
       onConsumePreselect();
     }
-  }, [preselectedId]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedId]);
+
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
