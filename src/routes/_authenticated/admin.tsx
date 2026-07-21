@@ -72,7 +72,7 @@ function AdminPage() {
 
   if (isAdmin === false) {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-dvh">
         <SiteHeader />
         <div className="mx-auto max-w-md px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-destructive">{lang === "ar" ? "غير مصرح" : "אין הרשאה"}</h1>
@@ -84,7 +84,7 @@ function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
