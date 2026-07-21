@@ -343,7 +343,8 @@ function ServicesSection({ services, onBook }: { services: Service[]; onBook: (i
 /* ---------------- GALLERY ---------------- */
 type GalleryItem = { id: string; media_type: "image" | "video"; storage_path: string | null; media_url: string; caption: string | null };
 function GallerySection() {
-  const { t, lang } = useLang();
+  const { t } = useLang();
+
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
 
