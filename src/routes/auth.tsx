@@ -114,7 +114,8 @@ function AuthPage() {
 
           <Link to="/" className="mt-4 block text-center text-sm text-muted-foreground hover:text-primary">← {lang === "ar" ? "العودة للموقع" : "חזרה לאתר"}</Link>
         </div>
-      </div>
+      </main>
     </div>
+
   );
 }
