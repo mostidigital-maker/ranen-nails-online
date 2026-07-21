@@ -184,7 +184,7 @@ function AppointmentsPanel() {
     qc.invalidateQueries({ queryKey: ["appointments"] });
   }
 
-  if (isLoading) return <div className="text-center text-muted-foreground py-8">...</div>;
+  if (isLoading) return <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground" role="status" aria-live="polite">{t("loadingSlots")}</div>;
   if (!data.length) return <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">{t("noAppointments")}</div>;
 
   const statusStyle = {
