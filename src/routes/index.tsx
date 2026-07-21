@@ -539,13 +539,15 @@ function BookingForm({ services, preselectedId, onConsumePreselect }: { services
   const [success, setSuccess] = useState(false);
   const selectedService = useMemo(() => services.find((s) => s.id === form.serviceId), [services, form.serviceId]);
 
-  // handle preselection
-  useMemo(() => {
+  // handle preselection (side effect, not a memo)
+  useEffect(() => {
     if (preselectedId && preselectedId !== form.serviceId) {
       setForm((f) => ({ ...f, serviceId: preselectedId, time: "" }));
       onConsumePreselect();
     }
-  }, [preselectedId]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedId]);
+
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
