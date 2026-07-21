@@ -76,22 +76,24 @@ function Index() {
   const address = settings ? (lang === "ar" ? settings.address_ar : settings.address_he) : t("location");
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
-
-      <HeroSection bizName={bizName} tagline={tagline} address={address} />
-      <StatsSection />
-      <AboutSection />
-      <ServicesSection services={services} onBook={bookService} />
-      <GallerySection />
-      <TestimonialsSection />
-      <FaqSection />
-      <BookingForm services={services} preselectedId={preselectedService} onConsumePreselect={() => setPreselectedService("")} />
-      <ContactSection />
+      <main>
+        <HeroSection bizName={bizName} tagline={tagline} address={address} />
+        <StatsSection />
+        <AboutSection />
+        <ServicesSection services={services} onBook={bookService} />
+        <GallerySection />
+        <TestimonialsSection />
+        <FaqSection />
+        <BookingForm services={services} preselectedId={preselectedService} onConsumePreselect={() => setPreselectedService("")} />
+        <ContactSection />
+      </main>
       <SiteFooter />
     </div>
   );
 }
+
 
 /* ---------------- HERO ---------------- */
 function HeroSection({ bizName, tagline, address }: { bizName: string; tagline: string; address: string }) {
