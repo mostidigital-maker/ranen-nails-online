@@ -74,12 +74,13 @@ function AdminPage() {
     return (
       <div className="min-h-dvh">
         <SiteHeader />
-        <div className="mx-auto max-w-md px-4 py-16 text-center">
+        <main className="mx-auto max-w-md px-4 py-16 text-center">
           <h1 className="text-xl font-bold text-destructive">{lang === "ar" ? "غير مصرح" : "אין הרשאה"}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{lang === "ar" ? "هذا الحساب ليس مديراً." : "החשבון אינו אדמין."}</p>
           <button onClick={signOut} className="mt-4 rounded-lg bg-primary px-4 py-2 text-primary-foreground">{t("logout")}</button>
-        </div>
+        </main>
       </div>
+
     );
   }
 
