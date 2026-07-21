@@ -26,11 +26,13 @@ export function SiteHeader() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setLang((lang === "ar" ? "he" : "ar") as Lang)}
+            aria-label={lang === "ar" ? "עברית" : "العربية"}
             className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm transition hover:border-primary hover:text-primary"
           >
-            <Globe className="h-3.5 w-3.5" />
+            <Globe className="h-3.5 w-3.5" aria-hidden="true" />
             {t("switchLang")}
           </button>
+
         </div>
       </div>
     </header>
