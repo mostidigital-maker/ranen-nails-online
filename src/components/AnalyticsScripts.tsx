@@ -23,6 +23,34 @@ export function AnalyticsScripts() {
   useEffect(() => {
     if (!s) return;
 
+    // --- SEO: title / description / keywords driven by Site Settings ---
+    const setMeta = (attr: "name" | "property", key: string, content: string) => {
+      let el = document.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.content = content;
+    };
+    const title = s.seo_title || s.business_name_ar;
+    if (title) {
+      document.title = title;
+      setMeta("property", "og:title", title);
+      setMeta("name", "twitter:title", title);
+    }
+    if (s.seo_description) {
+      setMeta("name", "description", s.seo_description);
+      setMeta("property", "og:description", s.seo_description);
+      setMeta("name", "twitter:description", s.seo_description);
+    }
+    if (s.seo_keywords) setMeta("name", "keywords", s.seo_keywords);
+    if (s.og_image_url) {
+      setMeta("property", "og:image", s.og_image_url);
+      setMeta("name", "twitter:image", s.og_image_url);
+    }
+
+
     if (s.ga_measurement_id) {
       injectScript("ga-src", `https://www.googletagmanager.com/gtag/js?id=${s.ga_measurement_id}`);
       injectScript(
