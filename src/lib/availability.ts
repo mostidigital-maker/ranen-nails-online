@@ -75,17 +75,22 @@ export async function getAvailableSlots(dateStr: string, durationMin: number): P
 
   const open = parseHM(hoursRow.open_time);
   const close = parseHM(hoursRow.close_time);
-  const step = hoursRow.slot_step_minutes || 30;
+  // Admin can override the per-day step with a global appointment interval.
+  const step = (cfg?.booking_slot_interval_minutes || 0) > 0
+    ? cfg!.booking_slot_interval_minutes
+    : (hoursRow.slot_step_minutes || 30);
 
   const openDt = new Date(y, mo - 1, d, open.h, open.m, 0, 0);
   const closeDt = new Date(y, mo - 1, d, close.h, close.m, 0, 0);
-  const now = new Date();
+  // Minimum notice before the earliest bookable slot.
+  const earliest = new Date(Date.now() + (cfg?.booking_min_notice_minutes ?? 0) * 60000);
 
   const slots: Slot[] = [];
   for (let t = new Date(openDt); ; t = new Date(t.getTime() + step * 60000)) {
     const end = new Date(t.getTime() + durationMin * 60000);
     if (end > closeDt) break;
-    if (t <= now) continue;
+    if (t <= earliest) continue;
+
     let busyHit = false;
     for (const [bs, be] of busyRanges) {
       if (overlaps(t, end, bs, be)) { busyHit = true; break; }
