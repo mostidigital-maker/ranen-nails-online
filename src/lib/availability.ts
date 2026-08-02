@@ -26,6 +26,29 @@ export async function getAvailableSlots(dateStr: string, durationMin: number): P
   const dayEnd = new Date(y, mo - 1, d, 23, 59, 59, 999);
   const dow = dayStart.getDay();
 
+  // 0) booking configuration (admin-editable)
+  const { data: cfgRow } = await supabase
+    .from("site_settings" as never)
+    .select("booking_enabled,booking_max_days_ahead,booking_min_notice_minutes,booking_slot_interval_minutes")
+    .eq("id", 1)
+    .maybeSingle();
+  const cfg = (cfgRow || null) as unknown as {
+    booking_enabled: boolean;
+    booking_max_days_ahead: number;
+    booking_min_notice_minutes: number;
+    booking_slot_interval_minutes: number;
+  } | null;
+
+  if (cfg && cfg.booking_enabled === false) return { slots: [], closed: true };
+
+  const maxDaysAhead = cfg?.booking_max_days_ahead ?? 60;
+  if (maxDaysAhead > 0) {
+    const limit = new Date();
+    limit.setHours(23, 59, 59, 999);
+    limit.setDate(limit.getDate() + maxDaysAhead);
+    if (dayStart > limit) return { slots: [], closed: false };
+  }
+
   // 1) hours for this weekday
   const { data: hoursRow, error: hErr } = await supabase
     .from("business_hours")
@@ -34,6 +57,7 @@ export async function getAvailableSlots(dateStr: string, durationMin: number): P
     .maybeSingle();
   if (hErr) throw hErr;
   if (!hoursRow || hoursRow.is_closed) return { slots: [], closed: true };
+
 
   // 2) busy ranges + blocks for this day, in parallel
   const [{ data: busy, error: bErr }, { data: blocks, error: blErr }] = await Promise.all([
