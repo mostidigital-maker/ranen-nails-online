@@ -212,4 +212,3 @@ export function useLang() {
   return ctx;
 }
 
-export const RENIN_PHONE = "972502204606"; // 0502204606 → intl format for wa.me
