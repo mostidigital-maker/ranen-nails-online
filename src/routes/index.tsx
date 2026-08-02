@@ -38,7 +38,10 @@ type Service = {
   description_he: string | null;
   price: number;
   duration_minutes: number;
+  image_url: string | null;
+  category_id: string | null;
 };
+
 
 // Small map of allowed icon names → components (admin picks a name)
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
