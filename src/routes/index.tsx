@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/lib/i18n";
-import { useSiteSettings } from "@/lib/site";
+import { useSiteSettings, useServiceCategories } from "@/lib/site";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Reveal, CountUp, SectionHeader } from "@/components/SectionReveal";
 import {
