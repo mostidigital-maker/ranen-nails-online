@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/lib/i18n";
-import { useSiteSettings } from "@/lib/site";
+import { useSiteSettings, useServiceCategories } from "@/lib/site";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Reveal, CountUp, SectionHeader } from "@/components/SectionReveal";
 import {
@@ -20,12 +20,15 @@ import "yet-another-react-lightbox/styles.css";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "رنين نيلز | Ranen Nails - دير الاسد" },
-      { name: "description", content: "صالون رنين نيلز للعناية بالأظافر والحواجب. بناء أظافر، لاك جل، أكريل، تصميم حواجب. احجزي موعدك أونلاين." },
+      { title: "احجزي موعدك أونلاين | صالون التجميل" },
+      { name: "description", content: "خدمات العناية والتجميل مع إمكانية حجز المواعيد أونلاين. تصفحي الخدمات والأسعار والمعرض." },
+      { property: "og:title", content: "احجزي موعدك أونلاين | صالون التجميل" },
+      { property: "og:description", content: "خدمات العناية والتجميل مع إمكانية حجز المواعيد أونلاين. تصفحي الخدمات والأسعار والمعرض." },
     ],
   }),
   component: Index,
 });
+
 
 type Service = {
   id: string;
@@ -35,7 +38,10 @@ type Service = {
   description_he: string | null;
   price: number;
   duration_minutes: number;
+  image_url: string | null;
+  category_id: string | null;
 };
+
 
 // Small map of allowed icon names → components (admin picks a name)
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -56,11 +62,12 @@ function Index() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("id,name_ar,name_he,description_ar,description_he,price,duration_minutes")
+        .select("id,name_ar,name_he,description_ar,description_he,price,duration_minutes,image_url,category_id")
         .eq("is_active", true)
         .order("sort_order");
       if (error) throw error;
-      return data as Service[];
+      return data as unknown as Service[];
+
     },
   });
 
@@ -86,7 +93,9 @@ function Index() {
         <GallerySection />
         <TestimonialsSection />
         <FaqSection />
-        <BookingForm services={services} preselectedId={preselectedService} onConsumePreselect={() => setPreselectedService("")} />
+        {settings?.booking_enabled !== false && (
+          <BookingForm services={services} preselectedId={preselectedService} onConsumePreselect={() => setPreselectedService("")} />
+        )}
         <ContactSection />
       </main>
       <SiteFooter />
@@ -280,19 +289,64 @@ function AboutSection() {
 /* ---------------- SERVICES ---------------- */
 function ServicesSection({ services, onBook }: { services: Service[]; onBook: (id: string) => void }) {
   const { t, lang } = useLang();
+  const { data: settings } = useSiteSettings();
+  const { data: categories = [] } = useServiceCategories();
+  const [activeCat, setActiveCat] = useState<string>("");
+  const currency = settings?.currency || t("currency");
+
+  // Only categories that actually have services attached
+  const usedCategories = useMemo(
+    () => categories.filter((c) => services.some((s) => s.category_id === c.id)),
+    [categories, services],
+  );
+  const shown = useMemo(
+    () => (activeCat ? services.filter((s) => s.category_id === activeCat) : services),
+    [services, activeCat],
+  );
+
   if (!services.length) return null;
   return (
     <section id="services" className="px-4 py-16">
       <div className="mx-auto max-w-5xl">
         <SectionHeader title={t("services")} subtitle={t("servicesSubtitle")} />
+
+        {usedCategories.length > 1 && (
+          <Reveal>
+            <div className="mb-8 flex flex-wrap justify-center gap-2">
+              <button
+                onClick={() => setActiveCat("")}
+                className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition ${activeCat === "" ? "border-transparent text-primary-foreground shadow" : "border-border bg-card hover:border-primary hover:text-primary"}`}
+                style={activeCat === "" ? { background: "var(--gradient-primary)" } : undefined}
+              >
+                {lang === "ar" ? "الكل" : "הכל"}
+              </button>
+              {usedCategories.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setActiveCat(c.id)}
+                  className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition ${activeCat === c.id ? "border-transparent text-primary-foreground shadow" : "border-border bg-card hover:border-primary hover:text-primary"}`}
+                  style={activeCat === c.id ? { background: "var(--gradient-primary)" } : undefined}
+                >
+                  {lang === "ar" ? c.name_ar : c.name_he}
+                </button>
+              ))}
+            </div>
+          </Reveal>
+        )}
+
         <div className="grid gap-5 md:grid-cols-2">
-          {services.map((s, i) => (
+          {shown.map((s, i) => (
             <Reveal key={s.id} delay={i * 0.06}>
               <motion.div
                 whileHover={{ y: -4 }}
                 transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                className="group flex h-full flex-col justify-between rounded-3xl border border-border bg-card p-6 shadow-sm transition hover:border-primary hover:shadow-xl"
+                className="group flex h-full flex-col justify-between overflow-hidden rounded-3xl border border-border bg-card shadow-sm transition hover:border-primary hover:shadow-xl"
               >
+                {s.image_url && (
+                  <img src={s.image_url} alt={lang === "ar" ? s.name_ar : s.name_he} loading="lazy"
+                       className="h-40 w-full object-cover transition duration-500 group-hover:scale-105" />
+                )}
+                <div className="flex h-full flex-col justify-between p-6">
                 <div>
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -307,7 +361,7 @@ function ServicesSection({ services, onBook }: { services: Service[]; onBook: (i
                            style={{ backgroundImage: "var(--gradient-primary)" }}>
                         {s.price}
                       </div>
-                      <div className="text-xs text-muted-foreground">{t("currency")}</div>
+                      <div className="text-xs text-muted-foreground">{currency}</div>
                     </div>
                   </div>
                   {(s.description_ar || s.description_he) && (
@@ -331,6 +385,7 @@ function ServicesSection({ services, onBook }: { services: Service[]; onBook: (i
                     <Calendar className="h-4 w-4" /> {t("bookNow")}
                   </span>
                 </button>
+                </div>
               </motion.div>
             </Reveal>
           ))}
@@ -339,6 +394,7 @@ function ServicesSection({ services, onBook }: { services: Service[]; onBook: (i
     </section>
   );
 }
+
 
 /* ---------------- GALLERY ---------------- */
 type GalleryItem = { id: string; media_type: "image" | "video"; storage_path: string | null; media_url: string; caption: string | null };
@@ -577,11 +633,12 @@ function BookingForm({ services, preselectedId, onConsumePreselect }: { services
     setSubmitting(false);
     if (error) { toast.error(t("error") + ": " + error.message); return; }
 
+    const cur = settings?.currency || "";
     const msg = lang === "ar"
-      ? `حجز جديد 💅\nالاسم: ${form.name}\nالهاتف: ${form.phone}\nالخدمة: ${service.name_ar}\nالسعر: ${service.price}₪\nالتاريخ: ${form.date}\nالوقت: ${form.time}${form.notes ? `\nملاحظات: ${form.notes}` : ""}`
-      : `תור חדש 💅\nשם: ${form.name}\nטלפון: ${form.phone}\nשירות: ${service.name_he}\nמחיר: ${service.price}₪\nתאריך: ${form.date}\nשעה: ${form.time}${form.notes ? `\nהערות: ${form.notes}` : ""}`;
-    const wa = settings?.whatsapp || "972502204606";
-    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, "_blank");
+      ? `حجز جديد 💅\nالاسم: ${form.name}\nالهاتف: ${form.phone}\nالخدمة: ${service.name_ar}\nالسعر: ${service.price}${cur}\nالتاريخ: ${form.date}\nالوقت: ${form.time}${form.notes ? `\nملاحظات: ${form.notes}` : ""}`
+      : `תור חדש 💅\nשם: ${form.name}\nטלפון: ${form.phone}\nשירות: ${service.name_he}\nמחיר: ${service.price}${cur}\nתאריך: ${form.date}\nשעה: ${form.time}${form.notes ? `\nהערות: ${form.notes}` : ""}`;
+    const wa = (settings?.whatsapp || "").replace(/\D/g, "");
+    if (wa) window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, "_blank");
     toast.success(t("bookingSent"));
     setSuccess(true);
     qc.invalidateQueries({ queryKey: ["slots"] });

@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "تسجيل دخول | رنين نيلز" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "تسجيل دخول | لوحة الإدارة" }, { name: "robots", content: "noindex" }] }),
   component: AuthPage,
 });
 

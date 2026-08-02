@@ -5,24 +5,26 @@ export type Lang = "ar" | "he";
 type Dict = Record<string, { ar: string; he: string }>;
 
 const T = {
-  brand: { ar: "رنين نيلز", he: "רנין ניילז" },
-  tagline: { ar: "فن الأظافر بلمسة أنثوية", he: "אומנות הציפורניים במגע נשי" },
-  location: { ar: "دير الاسد", he: "דיר אל-אסד" },
+  // Neutral fallbacks — every one of these is overridden by Site Settings.
+  brand: { ar: "صالون التجميل", he: "סלון היופי" },
+  tagline: { ar: "جمالك يبدأ من هنا", he: "היופי שלך מתחיל כאן" },
+  location: { ar: "العنوان", he: "כתובת" },
   bookNow: { ar: "احجزي موعدك", he: "קבעי תור" },
   viewGallery: { ar: "شاهدي أعمالنا", he: "צפי בעבודות" },
   services: { ar: "خدماتنا", he: "השירותים שלנו" },
   servicesSubtitle: { ar: "خدمات مختارة بعناية لكِ", he: "שירותים נבחרים במיוחד עבורך" },
   about: { ar: "عن الصالون", he: "על הסלון" },
   aboutText: {
-    ar: "صالون رنين هو وجهتك للعناية بالأظافر والحواجب في دير الاسد. أناقة، نظافة ولمسة فنية في كل تفصيل.",
-    he: "סלון רנין הוא היעד שלך לטיפוח ציפורניים וגבות בדיר אל-אסד. אלגנטיות, ניקיון ומגע אומנותי בכל פרט.",
+    ar: "أناقة، نظافة ولمسة فنية في كل تفصيل.",
+    he: "אלגנטיות, ניקיון ומגע אומנותי בכל פרט.",
   },
   contact: { ar: "تواصلي معنا", he: "צרי קשר" },
   workingHours: { ar: "ساعات العمل", he: "שעות פעילות" },
   hoursValue: {
-    ar: "كل يوم 10:00 - 18:00 (الإثنين مغلق)",
-    he: "כל יום 10:00 - 18:00 (יום שני סגור)",
+    ar: "حسب ساعات العمل",
+    he: "לפי שעות הפעילות",
   },
+
   bookingTitle: { ar: "احجزي موعدك الآن", he: "קביעת תור" },
   name: { ar: "الاسم الكامل", he: "שם מלא" },
   phone: { ar: "رقم الهاتف", he: "מספר טלפון" },
@@ -124,7 +126,49 @@ const T = {
   followUs: { ar: "تابعينا", he: "עקבי אחרינו" },
   quickLinks: { ar: "روابط سريعة", he: "קישורים מהירים" },
   allRightsReserved: { ar: "جميع الحقوق محفوظة", he: "כל הזכויות שמורות" },
+  // CMS / admin
+  categories: { ar: "تصنيفات الخدمات", he: "קטגוריות שירות" },
+  category: { ar: "التصنيف", he: "קטגוריה" },
+  noCategory: { ar: "بدون تصنيف", he: "ללא קטגוריה" },
+  slug: { ar: "المعرّف (slug)", he: "מזהה (slug)" },
+  imageUrl: { ar: "رابط الصورة", he: "כתובת תמונה" },
+  photoUrl: { ar: "رابط صورة العميلة", he: "כתובת תמונת הלקוחה" },
+  beforeAfter: { ar: "قبل / بعد", he: "לפני / אחרי" },
+  general: { ar: "عام", he: "כללי" },
+  business: { ar: "إعدادات العمل", he: "הגדרות עסק" },
+  booking: { ar: "الحجز", he: "הזמנות" },
+  bookingEnabled: { ar: "تفعيل الحجز أونلاين", he: "אפשר קביעת תור אונליין" },
+  bookingDisabledMsg: { ar: "الحجز أونلاين غير متاح حالياً، تواصلي معنا مباشرة.", he: "קביעת תור אונליין אינה זמינה כעת, צרי קשר ישירות." },
+  maxDaysAhead: { ar: "أقصى عدد أيام مسبقاً", he: "מקסימום ימים מראש" },
+  minNotice: { ar: "أقل مهلة (دقائق)", he: "התראה מינימלית (דקות)" },
+  slotInterval: { ar: "فاصل المواعيد (دقائق، 0 = حسب ساعات العمل)", he: "מרווח תורים (דקות, 0 = לפי שעות פעילות)" },
+  currencySymbol: { ar: "رمز العملة", he: "סמל מטבע" },
+  timezone: { ar: "المنطقة الزمنية", he: "אזור זמן" },
+  seo: { ar: "تحسين محركات البحث (SEO)", he: "SEO" },
+  seoTitle: { ar: "عنوان SEO", he: "כותרת SEO" },
+  seoDescription: { ar: "وصف SEO", he: "תיאור SEO" },
+  seoKeywords: { ar: "كلمات مفتاحية", he: "מילות מפתח" },
+  favicon: { ar: "أيقونة الموقع (Favicon)", he: "Favicon" },
+  ogImage: { ar: "صورة المشاركة (OG)", he: "תמונת שיתוף (OG)" },
+  analytics: { ar: "التحليلات", he: "אנליטיקס" },
+  payments: { ar: "المدفوعات", he: "תשלומים" },
+  paymentsEnabled: { ar: "تفعيل المدفوعات", he: "הפעלת תשלומים" },
+  provider: { ar: "المزوّد", he: "ספק" },
+  publicKey: { ar: "المفتاح العام", he: "מפתח ציבורי" },
+  secretKey: { ar: "المفتاح السري", he: "מפתח סודי" },
+  successUrl: { ar: "رابط النجاح", he: "כתובת הצלחה" },
+  cancelUrl: { ar: "رابط الإلغاء", he: "כתובת ביטול" },
+  mode: { ar: "الوضع", he: "מצב" },
+  sandbox: { ar: "تجريبي", he: "בדיקות" },
+  production: { ar: "إنتاج", he: "ייצור" },
+  social: { ar: "شبكات التواصل", he: "רשתות חברתיות" },
+  facebook: { ar: "فيسبوك", he: "פייסבוק" },
+  tiktok: { ar: "تيك توك", he: "טיקטוק" },
+  youtube: { ar: "يوتيوب", he: "יוטיוב" },
+  notIntegratedYet: { ar: "الإعدادات محفوظة فقط — لم يتم ربط أي مزوّد بعد.", he: "ההגדרות נשמרות בלבד — טרם חובר ספק." },
+  brandLatin: { ar: "الاسم اللاتيني (تحت الشعار)", he: "שם לטיני (מתחת ללוגו)" },
 } satisfies Dict;
+
 
 export type TKey = keyof typeof T;
 
@@ -168,4 +212,3 @@ export function useLang() {
   return ctx;
 }
 
-export const RENIN_PHONE = "972502204606"; // 0502204606 → intl format for wa.me

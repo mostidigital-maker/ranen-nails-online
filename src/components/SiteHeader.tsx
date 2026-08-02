@@ -20,8 +20,11 @@ export function SiteHeader() {
           </div>
           <div className="min-w-0 leading-tight">
             <div className="truncate text-lg font-bold">{brand}</div>
-            <div className="text-[10px] tracking-widest text-muted-foreground">RANEN NAILS</div>
+            {settings?.brand_latin && (
+              <div className="text-[10px] tracking-widest text-muted-foreground">{settings.brand_latin}</div>
+            )}
           </div>
+
         </Link>
         <div className="flex items-center gap-2">
           <button
