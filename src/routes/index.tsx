@@ -651,11 +651,6 @@ function BookingForm({ services, preselectedId, onConsumePreselect }: { services
     <section id="booking" className="px-4 py-16">
       <div className="mx-auto max-w-xl">
         <SectionHeader title={t("bookingTitle")} />
-        {(lang === "ar" ? settings?.booking_notice_ar : settings?.booking_notice_he) && (
-          <p className="mx-auto -mt-4 mb-8 max-w-xl text-center text-sm text-muted-foreground">
-            {lang === "ar" ? settings?.booking_notice_ar : settings?.booking_notice_he}
-          </p>
-        )}
         <Reveal>
           <form onSubmit={onSubmit} className="space-y-4 rounded-3xl border border-border bg-card p-6 shadow-xl md:p-8">
             <Field label={t("name")}>

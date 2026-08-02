@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/lib/i18n";
-import { useSiteSettings } from "@/lib/site";
+import { useSiteSettings, PAYMENT_PROVIDERS } from "@/lib/site";
 import { SiteHeader } from "@/components/SiteHeader";
 import { toast } from "sonner";
 import {
@@ -297,17 +297,17 @@ type SiteSettingsRow = {
   address_ar: string; address_he: string; maps_url: string | null;
   hours_text_ar: string; hours_text_he: string;
   footer_text_ar: string; footer_text_he: string;
-  brand_latin: string | null; favicon_url: string | null; currency: string;
-  email: string | null; facebook: string | null; tiktok: string | null; website_url: string | null;
-  booking_enabled: boolean; booking_max_days_ahead: number;
+  brand_latin: string | null; favicon_url: string | null; currency: string; timezone: string;
+  email: string | null; facebook_url: string | null; tiktok_url: string | null; youtube_url: string | null;
+  booking_enabled: boolean; online_payments_enabled: boolean;
+  booking_max_days_ahead: number;
   booking_min_notice_minutes: number; booking_slot_interval_minutes: number;
-  booking_require_approval: boolean; booking_notice_ar: string | null; booking_notice_he: string | null;
   seo_title: string | null; seo_description: string | null; seo_keywords: string | null;
   og_image_url: string | null; google_site_verification: string | null;
   ga_measurement_id: string | null; gtm_id: string | null;
   meta_pixel_id: string | null; tiktok_pixel_id: string | null;
-  payments_enabled: boolean; payment_provider: string | null;
-  deposit_enabled: boolean; deposit_amount: number;
+  payments_enabled: boolean; payments_provider: string; payments_mode: string;
+  payments_public_key: string | null; payments_success_url: string | null; payments_cancel_url: string | null;
 };
 
 function SettingsPanel() {
@@ -382,10 +382,10 @@ function SettingsPanel() {
         <Input label={t("phone")} value={f.phone} onChange={(v) => set("phone", v)} />
         <Input label={t("whatsapp") + " (972...)"} value={f.whatsapp} onChange={(v) => set("whatsapp", v)} />
         <Input label={t("instagram")} value={f.instagram || ""} onChange={(v) => set("instagram", v || null)} />
-        <Input label="Facebook" value={f.facebook || ""} onChange={(v) => set("facebook", v || null)} />
-        <Input label="TikTok" value={f.tiktok || ""} onChange={(v) => set("tiktok", v || null)} />
+        <Input label="Facebook" value={f.facebook_url || ""} onChange={(v) => set("facebook_url", v || null)} />
+        <Input label="TikTok" value={f.tiktok_url || ""} onChange={(v) => set("tiktok_url", v || null)} />
+        <Input label="YouTube" value={f.youtube_url || ""} onChange={(v) => set("youtube_url", v || null)} />
         <Input label={lang === "ar" ? "البريد الإلكتروني" : "אימייל"} value={f.email || ""} onChange={(v) => set("email", v || null)} />
-        <Input label={lang === "ar" ? "رابط الموقع" : "כתובת האתר"} value={f.website_url || ""} onChange={(v) => set("website_url", v || null)} />
         <Input label={lang === "ar" ? "رابط الخرائط" : "כתובת מפה"} value={f.maps_url || ""} onChange={(v) => set("maps_url", v || null)} />
         <Input label={t("address") + " (ar)"} value={f.address_ar} onChange={(v) => set("address_ar", v)} />
         <Input label={t("address") + " (he)"} value={f.address_he} onChange={(v) => set("address_he", v)} />
@@ -395,12 +395,10 @@ function SettingsPanel() {
 
       <Section title={lang === "ar" ? "الحجوزات" : "הזמנת תורים"}>
         <Check label={lang === "ar" ? "تفعيل الحجز أونلاين" : "אפשר הזמנת תורים"} value={f.booking_enabled} onChange={(v) => set("booking_enabled", v)} />
-        <Check label={lang === "ar" ? "المواعيد بحاجة لتأكيد" : "תורים דורשים אישור"} value={f.booking_require_approval} onChange={(v) => set("booking_require_approval", v)} />
         <Input label={lang === "ar" ? "أقصى عدد أيام مسبقاً" : "מקסימום ימים מראש"} type="number" value={String(f.booking_max_days_ahead)} onChange={(v) => set("booking_max_days_ahead", Number(v) || 0)} />
         <Input label={lang === "ar" ? "أقل مهلة قبل الموعد (دقائق)" : "התראה מינימלית (דקות)"} type="number" value={String(f.booking_min_notice_minutes)} onChange={(v) => set("booking_min_notice_minutes", Number(v) || 0)} />
         <Input label={lang === "ar" ? "الفاصل بين المواعيد (دقائق)" : "מרווח בין תורים (דקות)"} type="number" value={String(f.booking_slot_interval_minutes)} onChange={(v) => set("booking_slot_interval_minutes", Number(v) || 0)} />
-        <TextArea label={lang === "ar" ? "ملاحظة للزبونة (عربية)" : "הערה ללקוחה (ערבית)"} value={f.booking_notice_ar || ""} onChange={(v) => set("booking_notice_ar", v || null)} />
-        <TextArea label={lang === "ar" ? "ملاحظة للزبونة (عبرية)" : "הערה ללקוחה (עברית)"} value={f.booking_notice_he || ""} onChange={(v) => set("booking_notice_he", v || null)} />
+        <Input label={lang === "ar" ? "المنطقة الزمنية" : "אזור זמן"} value={f.timezone} onChange={(v) => set("timezone", v)} />
       </Section>
 
       <Section title={lang === "ar" ? "تحسين محركات البحث (SEO)" : "SEO"}>
@@ -420,9 +418,25 @@ function SettingsPanel() {
 
       <Section title={lang === "ar" ? "المدفوعات" : "תשלומים"}>
         <Check label={lang === "ar" ? "تفعيل المدفوعات" : "אפשר תשלומים"} value={f.payments_enabled} onChange={(v) => set("payments_enabled", v)} />
-        <Input label={lang === "ar" ? "مزود الدفع" : "ספק תשלום"} value={f.payment_provider || ""} onChange={(v) => set("payment_provider", v || null)} />
-        <Check label={lang === "ar" ? "طلب عربون" : "דרוש מקדמה"} value={f.deposit_enabled} onChange={(v) => set("deposit_enabled", v)} />
-        <Input label={lang === "ar" ? "قيمة العربون" : "סכום מקדמה"} type="number" value={String(f.deposit_amount)} onChange={(v) => set("deposit_amount", Number(v) || 0)} />
+        <Check label={lang === "ar" ? "الدفع أونلاين عند الحجز" : "תשלום אונליין בהזמנה"} value={f.online_payments_enabled} onChange={(v) => set("online_payments_enabled", v)} />
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">{lang === "ar" ? "مزود الدفع" : "ספק תשלום"}</span>
+          <select value={f.payments_provider} onChange={(e) => set("payments_provider", e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm">
+            {PAYMENT_PROVIDERS.map((pv) => <option key={pv} value={pv}>{pv}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">{lang === "ar" ? "الوضع" : "מצב"}</span>
+          <select value={f.payments_mode} onChange={(e) => set("payments_mode", e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm">
+            <option value="sandbox">sandbox</option>
+            <option value="live">live</option>
+          </select>
+        </label>
+        <Input label={lang === "ar" ? "المفتاح العام" : "מפתח ציבורי"} value={f.payments_public_key || ""} onChange={(v) => set("payments_public_key", v || null)} />
+        <Input label={lang === "ar" ? "رابط النجاح" : "כתובת הצלחה"} value={f.payments_success_url || ""} onChange={(v) => set("payments_success_url", v || null)} />
+        <Input label={lang === "ar" ? "رابط الإلغاء" : "כתובת ביטול"} value={f.payments_cancel_url || ""} onChange={(v) => set("payments_cancel_url", v || null)} />
       </Section>
 
       <Section title={t("footer")}>
