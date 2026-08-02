@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  head: () => ({ meta: [{ title: "لوحة التحكم | رنين نيلز" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "لوحة التحكم" }, { name: "robots", content: "noindex" }] }),
   component: AdminPage,
 });
 
@@ -162,13 +162,14 @@ function AppointmentsPanel() {
     const { error } = await supabase.from("appointments").update({ status }).eq("id", a.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["appointments"] });
+    const bizName = lang === "ar" ? (settings?.business_name_ar || "") : (settings?.business_name_he || "");
     const dt = new Date(a.appointment_at);
     const dateStr = dt.toLocaleDateString(lang === "ar" ? "ar" : "he");
     const timeStr = dt.toLocaleTimeString(lang === "ar" ? "ar" : "he", { hour: "2-digit", minute: "2-digit" });
     const msg = status === "confirmed"
       ? (lang === "ar"
-          ? `مرحباً ${a.client_name} 💕\nتم تأكيد موعدك في رنين نيلز:\nالخدمة: ${a.service_name}\nالتاريخ: ${dateStr}\nالوقت: ${timeStr}\nبانتظارك!`
-          : `שלום ${a.client_name} 💕\nהתור שלך ברנין ניילז אושר:\nשירות: ${a.service_name}\nתאריך: ${dateStr}\nשעה: ${timeStr}\nמחכה לך!`)
+          ? `مرحباً ${a.client_name} 💕\nتم تأكيد موعدك في ${bizName}:\nالخدمة: ${a.service_name}\nالتاريخ: ${dateStr}\nالوقت: ${timeStr}\nبانتظارك!`
+          : `שלום ${a.client_name} 💕\nהתור שלך ב${bizName} אושר:\nשירות: ${a.service_name}\nתאריך: ${dateStr}\nשעה: ${timeStr}\nמחכה לך!`)
       : (lang === "ar"
           ? `مرحباً ${a.client_name}\nنعتذر، تم إلغاء موعدك:\nالخدمة: ${a.service_name}\nالتاريخ: ${dateStr} ${timeStr}\nتواصلي معنا لتحديد موعد جديد.`
           : `שלום ${a.client_name}\nלצערנו התור שלך בוטל:\nשירות: ${a.service_name}\nתאריך: ${dateStr} ${timeStr}\nצרי קשר לקביעת תור חדש.`);
@@ -196,7 +197,8 @@ function AppointmentsPanel() {
   return (
     <div className="space-y-3">
       {data.map((a) => {
-        const dt = new Date(a.appointment_at);
+        const bizName = lang === "ar" ? (settings?.business_name_ar || "") : (settings?.business_name_he || "");
+    const dt = new Date(a.appointment_at);
         return (
           <div key={a.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">

@@ -631,11 +631,12 @@ function BookingForm({ services, preselectedId, onConsumePreselect }: { services
     setSubmitting(false);
     if (error) { toast.error(t("error") + ": " + error.message); return; }
 
+    const cur = settings?.currency || "";
     const msg = lang === "ar"
-      ? `حجز جديد 💅\nالاسم: ${form.name}\nالهاتف: ${form.phone}\nالخدمة: ${service.name_ar}\nالسعر: ${service.price}₪\nالتاريخ: ${form.date}\nالوقت: ${form.time}${form.notes ? `\nملاحظات: ${form.notes}` : ""}`
-      : `תור חדש 💅\nשם: ${form.name}\nטלפון: ${form.phone}\nשירות: ${service.name_he}\nמחיר: ${service.price}₪\nתאריך: ${form.date}\nשעה: ${form.time}${form.notes ? `\nהערות: ${form.notes}` : ""}`;
-    const wa = settings?.whatsapp || "972502204606";
-    window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, "_blank");
+      ? `حجز جديد 💅\nالاسم: ${form.name}\nالهاتف: ${form.phone}\nالخدمة: ${service.name_ar}\nالسعر: ${service.price}${cur}\nالتاريخ: ${form.date}\nالوقت: ${form.time}${form.notes ? `\nملاحظات: ${form.notes}` : ""}`
+      : `תור חדש 💅\nשם: ${form.name}\nטלפון: ${form.phone}\nשירות: ${service.name_he}\nמחיר: ${service.price}${cur}\nתאריך: ${form.date}\nשעה: ${form.time}${form.notes ? `\nהערות: ${form.notes}` : ""}`;
+    const wa = (settings?.whatsapp || "").replace(/\D/g, "");
+    if (wa) window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, "_blank");
     toast.success(t("bookingSent"));
     setSuccess(true);
     qc.invalidateQueries({ queryKey: ["slots"] });
