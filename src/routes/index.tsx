@@ -20,12 +20,15 @@ import "yet-another-react-lightbox/styles.css";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "رنين نيلز | Ranen Nails - دير الاسد" },
-      { name: "description", content: "صالون رنين نيلز للعناية بالأظافر والحواجب. بناء أظافر، لاك جل، أكريل، تصميم حواجب. احجزي موعدك أونلاين." },
+      { title: "احجزي موعدك أونلاين | صالون التجميل" },
+      { name: "description", content: "خدمات العناية والتجميل مع إمكانية حجز المواعيد أونلاين. تصفحي الخدمات والأسعار والمعرض." },
+      { property: "og:title", content: "احجزي موعدك أونلاين | صالون التجميل" },
+      { property: "og:description", content: "خدمات العناية والتجميل مع إمكانية حجز المواعيد أونلاين. تصفحي الخدمات والأسعار والمعرض." },
     ],
   }),
   component: Index,
 });
+
 
 type Service = {
   id: string;
