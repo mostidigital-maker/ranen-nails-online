@@ -1,57 +1,93 @@
-# Premium UX Upgrade + Full CMS
+# Beauty Salon CMS — Generalization Plan
 
-Keep current rose/gold theme, RTL, Arabic-first with Hebrew toggle, booking logic, gallery uploads. Only enhance UX and make everything editable from Admin.
+Turn the project into a reusable CMS. No UI redesign, no layout/booking changes, no data loss. All hardcoded "Ranen Nails" content becomes editable from Admin.
 
-## 1. Database (single migration)
+## 1. Database migrations (additive only)
 
-New tables (all with `GRANT` + RLS: public SELECT active rows, admin full CRUD):
+Single migration that only ADDs columns/tables. No drops, no renames.
 
-- `site_settings` — key/value JSONB store (single-row config): business_name_ar/he, logo_url, hero_title_ar/he, hero_subtitle_ar/he, about_text_ar/he, phone, whatsapp, instagram, address_ar/he, maps_url, working_hours_text_ar/he, footer_text_ar/he, button labels.
-- `stats` — id, label_ar, label_he, value (int), suffix, sort_order, is_active.
-- `about_cards` — id, icon (lucide name), title_ar/he, text_ar/he, sort_order, is_active.
-- `testimonials` — id, name, text_ar, text_he, rating (1–5), sort_order, is_active.
-- `faqs` — id, question_ar/he, answer_ar/he, sort_order, is_active.
+**Extend `site_settings`** (single-row config) with columns:
+- General: `business_name`, `business_subtitle`, `logo_url`, `hero_image_url`, `hero_title`, `hero_subtitle`, `about_text` (most already exist — add missing)
+- Contact: `phone`, `whatsapp`, `email`, `address`, `google_maps_url`
+- Social: `instagram_url`, `facebook_url`, `tiktok_url`, `youtube_url`
+- Business: `currency` (default `ILS`), `timezone` (default `Asia/Jerusalem`), `booking_enabled` (bool), `online_payments_enabled` (bool)
+- Booking config: `booking_max_days_ahead` (int, default 30), `booking_min_notice_minutes` (int, default 120), `booking_slot_interval_minutes` (int, default 30)
+- SEO: `seo_title`, `seo_description`, `seo_keywords`, `favicon_url`, `og_image_url`
+- Analytics: `ga_measurement_id`, `gtm_id`, `meta_pixel_id`, `tiktok_pixel_id`, `google_site_verification`
+- Payments (config only, no integration): `payments_enabled` (bool), `payments_provider` (text), `payments_public_key`, `payments_secret_key` (nullable — real secrets still go to Supabase secrets), `payments_success_url`, `payments_cancel_url`, `payments_mode` ('sandbox'|'production')
 
-Extend `services`: add `description_ar`, `description_he` (text, nullable).
+**New table `service_categories`**: `id`, `slug`, `name`, `display_order`, `is_active`, timestamps. Seed with: Nails, Eyebrows, Lashes, Hair, Facial, Waxing, Makeup, Skincare, Other.
 
-Seed with current hardcoded values so nothing regresses.
+**Extend `services`** with: `category_id` (nullable FK → service_categories), `image_url`, `display_order`, `is_active` (add whichever are missing). Keep old `category` text column for backward compat.
 
-## 2. Frontend
+**Extend `gallery_items`** with: `category`, `title`, `description`, `is_before_after` (bool), `display_order`, `is_active`.
 
-Install `framer-motion`.
+**Extend `testimonials`** with: `photo_url`, `display_order`, `is_active`.
 
-Restructure `src/routes/index.tsx` into sections powered by DB:
-- **Hero**: title + subtitle from settings, two CTAs (Book / Gallery), reserved image slot (uses `settings.hero_image_url` if present, else gradient placeholder). Subtle fade-up motion.
-- **Stats**: animated count-up on scroll (framer-motion `useInView` + tween).
-- **About**: intro text + grid of `about_cards` (icon + title + text).
-- **Services**: cards with description, duration, price, "Book" button (scrolls to booking with service preselected), hover lift.
-- **Gallery**: existing data + `yet-another-react-lightbox` for lightbox.
-- **Testimonials**: card carousel/grid with star rating.
-- **FAQ**: shadcn Accordion.
-- **Booking**: unchanged logic; polished spacing/typography.
-- **Contact**: phone/whatsapp/instagram/address/hours/navigate button, all from settings.
-- **Footer**: from settings.
+**Extend `faqs`** with: `display_order`, `is_active` (if missing).
 
-Motion used sparingly: section fade-up on enter, hover scale on cards, stat count-up.
+**Extend `stats`** with: `display_order`, `is_active` (if missing).
 
-## 3. Admin (`/admin`)
+All new columns nullable or defaulted so existing rows keep working. RLS: reuse existing policies; new `service_categories` gets public SELECT + admin write, matching the pattern in existing tables. Grants included per public-schema rules.
 
-Add tabs: Settings, Stats, About Cards, Testimonials, FAQ. Extend Services with description + drag-reorder (up/down arrow buttons — simple, no DnD lib). Keep Appointments, Services, Gallery, Hours, Blocks.
+## 2. Remove hardcoded branding
 
-Each new panel: list + inline add/edit form + delete + up/down reorder + active toggle.
+- `src/lib/site.ts` → thin fallback defaults only; real values fetched from `site_settings`.
+- `src/routes/__root.tsx` head → read business/SEO from `site_settings` via a public loader server fn (`getPublicSiteSettings`); fallback to defaults if row missing.
+- `src/routes/index.tsx`, `SiteHeader`, footer, contact block → consume `site_settings` fields instead of hardcoded strings.
+- WhatsApp booking message → uses `site_settings.whatsapp`.
+- Auth page + any residual "Ranen Nails" strings → replaced with `business_name`.
 
-Settings panel: single form editing the `site_settings` row (all text fields, both languages, logo upload to gallery bucket).
+## 3. Admin Panel expansion
 
-## 4. i18n
+Keep existing tab structure. Extend/add tabs so every new field is editable. No redesign — same shadcn tabs, cards, inputs, table rows.
 
-Add keys for new UI labels (stats, testimonials, FAQ, contact, footer, admin panel labels).
+Tabs (existing kept, extended as noted):
+1. **General** — business name/subtitle/logo/hero/about
+2. **Contact & Social** — phone, whatsapp, email, address, maps URL, all social links
+3. **Business & Booking** — currency, timezone, booking_enabled, max days ahead, min notice, slot interval
+4. **SEO** — title, description, keywords, favicon, og image
+5. **Analytics** — GA, GTM, Meta Pixel, TikTok Pixel, Search Console verification (config only)
+6. **Payments** — enabled, provider dropdown (Stripe/Tranzila/CardCom/Pelecard/Meshulam/Green Invoice), public key, secret key note (points to secrets), success/cancel URLs, sandbox/production toggle (config only)
+7. **Service Categories** — CRUD + reorder + hide
+8. **Services** — CRUD, assign category, image, display_order, is_active toggle, drag-free up/down reorder buttons
+9. **Gallery** — CRUD with category, title, description, before/after flag, order, active
+10. **Testimonials** — CRUD with optional photo upload, order, active
+11. **FAQ** — CRUD + reorder + hide
+12. **Statistics** — CRUD (title, value, icon name, order, visibility)
+13. **Business Hours** (existing) — unchanged
+14. **Blocked Slots** (existing) — unchanged
+15. **Appointments** (existing) — unchanged
+
+Reorder = simple ▲/▼ buttons updating `display_order`. Visibility = `is_active` switch.
+
+## 4. Booking logic
+
+No behavioral change. `availability.ts` now reads `booking_max_days_ahead`, `booking_min_notice_minutes`, `booking_slot_interval_minutes` from settings (with current values as defaults). Booking form is hidden when `booking_enabled = false`.
+
+## 5. Analytics / PWA / Payments
+
+- Analytics: root route conditionally injects GA/GTM/Meta/TikTok script tags when IDs are set. No SDK code beyond snippet injection.
+- PWA: no implementation. Confirm nothing in the codebase blocks a future `manifest.webmanifest` + service worker (it doesn't).
+- Payments: config UI only. No provider SDK added.
+
+## 6. Code quality
+
+- New `src/lib/settings.ts` — typed `SiteSettings` + `usePublicSettings()` hook (TanStack Query) + server fn `getPublicSiteSettings`.
+- Reusable `<AdminSection>`, `<ReorderRow>`, `<ImageUploadField>` components extracted from existing admin code where duplication exists.
+- Keep all existing files; edits are additive.
 
 ## Technical notes
-- Public `SELECT` policies scoped to `is_active = true` for anon; admin gets full access via `has_role`.
-- `site_settings` uses a fixed singleton row (id = 1); public anon SELECT allowed.
-- Reorder = `UPDATE ... SET sort_order` via two-row swap.
-- Count-up: framer-motion `animate(count, target)` inside `useInView`.
-- Lightbox: `yet-another-react-lightbox` (small, RTL-friendly).
-- No booking-flow changes; service "Book" button just sets form state + scrolls.
 
-Ready to build?
+- Migration is one file, additive `ALTER TABLE ADD COLUMN IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS` + grants + RLS + seed of `service_categories`.
+- Public settings fetched via server fn (publishable-key client) so SSR head tags work.
+- Secret payment keys: UI shows a field but recommends storing via Supabase secrets; DB column exists for non-sensitive keys (public key, provider config).
+- No changes to `_authenticated/route.tsx` gate, no changes to auth flow.
+
+## Out of scope (explicit)
+
+- No UI redesign, no color/font/layout changes.
+- No payment provider integration.
+- No PWA implementation.
+- No data migration (schema is additive).
+- No removal of existing features.
