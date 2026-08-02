@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
 
 type TabKey =
   | "appointments" | "services" | "gallery" | "hours" | "blocks"
-  | "settings" | "stats" | "about" | "testimonials" | "faq";
+  | "settings" | "categories" | "stats" | "about" | "testimonials" | "faq";
 
 type Appointment = {
   id: string; client_name: string; client_phone: string; service_name: string;
@@ -31,12 +31,18 @@ type Service = {
   id: string; name_ar: string; name_he: string;
   description_ar: string | null; description_he: string | null;
   price: number; duration_minutes: number; is_active: boolean; sort_order: number;
+  image_url: string | null; category_id: string | null;
+};
+
+type CategoryRow = {
+  id: string; name_ar: string; name_he: string; sort_order: number; is_active: boolean;
 };
 
 const TABS: { key: TabKey; labelAr: string; labelHe: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "appointments", labelAr: "المواعيد", labelHe: "תורים", icon: Calendar },
   { key: "settings", labelAr: "إعدادات الموقع", labelHe: "הגדרות האתר", icon: FileText },
   { key: "services", labelAr: "الخدمات", labelHe: "שירותים", icon: Settings },
+  { key: "categories", labelAr: "فئات الخدمات", labelHe: "קטגוריות", icon: LayoutGrid },
   { key: "gallery", labelAr: "المعرض", labelHe: "גלריה", icon: ImageIcon },
   { key: "stats", labelAr: "إحصائيات", labelHe: "סטטיסטיקות", icon: BarChart3 },
   { key: "about", labelAr: "بطاقات عن الصالون", labelHe: "כרטיסי אודות", icon: LayoutGrid },
@@ -121,6 +127,7 @@ function AdminPage() {
           {tab === "appointments" && <AppointmentsPanel />}
           {tab === "settings" && <SettingsPanel />}
           {tab === "services" && <ServicesPanel />}
+          {tab === "categories" && <CategoriesPanel />}
           {tab === "gallery" && <GalleryPanel />}
           {tab === "stats" && <StatsPanel />}
           {tab === "about" && <AboutPanel />}
@@ -290,6 +297,17 @@ type SiteSettingsRow = {
   address_ar: string; address_he: string; maps_url: string | null;
   hours_text_ar: string; hours_text_he: string;
   footer_text_ar: string; footer_text_he: string;
+  brand_latin: string | null; favicon_url: string | null; currency: string;
+  email: string | null; facebook: string | null; tiktok: string | null; website_url: string | null;
+  booking_enabled: boolean; booking_max_days_ahead: number;
+  booking_min_notice_minutes: number; booking_slot_interval_minutes: number;
+  booking_require_approval: boolean; booking_notice_ar: string | null; booking_notice_he: string | null;
+  seo_title: string | null; seo_description: string | null; seo_keywords: string | null;
+  og_image_url: string | null; google_site_verification: string | null;
+  ga_measurement_id: string | null; gtm_id: string | null;
+  meta_pixel_id: string | null; tiktok_pixel_id: string | null;
+  payments_enabled: boolean; payment_provider: string | null;
+  deposit_enabled: boolean; deposit_amount: number;
 };
 
 function SettingsPanel() {
@@ -341,6 +359,9 @@ function SettingsPanel() {
         <Input label={lang === "ar" ? "الشعار (بالعبرية)" : "סלוגן (עברית)"} value={f.tagline_he} onChange={(v) => set("tagline_he", v)} />
         <Input label={t("logoUrl")} value={f.logo_url || ""} onChange={(v) => set("logo_url", v || null)} />
         <Input label={t("heroImage")} value={f.hero_image_url || ""} onChange={(v) => set("hero_image_url", v || null)} />
+        <Input label={lang === "ar" ? "الاسم باللاتينية (تحت الشعار)" : "שם באנגלית (מתחת ללוגו)"} value={f.brand_latin || ""} onChange={(v) => set("brand_latin", v || null)} />
+        <Input label="Favicon URL" value={f.favicon_url || ""} onChange={(v) => set("favicon_url", v || null)} />
+        <Input label={lang === "ar" ? "رمز العملة" : "סמל מטבע"} value={f.currency} onChange={(v) => set("currency", v)} />
       </Section>
 
       <Section title={lang === "ar" ? "قسم الغلاف (Hero)" : "מקטע Hero"}>
@@ -361,11 +382,47 @@ function SettingsPanel() {
         <Input label={t("phone")} value={f.phone} onChange={(v) => set("phone", v)} />
         <Input label={t("whatsapp") + " (972...)"} value={f.whatsapp} onChange={(v) => set("whatsapp", v)} />
         <Input label={t("instagram")} value={f.instagram || ""} onChange={(v) => set("instagram", v || null)} />
+        <Input label="Facebook" value={f.facebook || ""} onChange={(v) => set("facebook", v || null)} />
+        <Input label="TikTok" value={f.tiktok || ""} onChange={(v) => set("tiktok", v || null)} />
+        <Input label={lang === "ar" ? "البريد الإلكتروني" : "אימייל"} value={f.email || ""} onChange={(v) => set("email", v || null)} />
+        <Input label={lang === "ar" ? "رابط الموقع" : "כתובת האתר"} value={f.website_url || ""} onChange={(v) => set("website_url", v || null)} />
         <Input label={lang === "ar" ? "رابط الخرائط" : "כתובת מפה"} value={f.maps_url || ""} onChange={(v) => set("maps_url", v || null)} />
         <Input label={t("address") + " (ar)"} value={f.address_ar} onChange={(v) => set("address_ar", v)} />
         <Input label={t("address") + " (he)"} value={f.address_he} onChange={(v) => set("address_he", v)} />
         <Input label={t("workingHours") + " (ar)"} value={f.hours_text_ar} onChange={(v) => set("hours_text_ar", v)} />
         <Input label={t("workingHours") + " (he)"} value={f.hours_text_he} onChange={(v) => set("hours_text_he", v)} />
+      </Section>
+
+      <Section title={lang === "ar" ? "الحجوزات" : "הזמנת תורים"}>
+        <Check label={lang === "ar" ? "تفعيل الحجز أونلاين" : "אפשר הזמנת תורים"} value={f.booking_enabled} onChange={(v) => set("booking_enabled", v)} />
+        <Check label={lang === "ar" ? "المواعيد بحاجة لتأكيد" : "תורים דורשים אישור"} value={f.booking_require_approval} onChange={(v) => set("booking_require_approval", v)} />
+        <Input label={lang === "ar" ? "أقصى عدد أيام مسبقاً" : "מקסימום ימים מראש"} type="number" value={String(f.booking_max_days_ahead)} onChange={(v) => set("booking_max_days_ahead", Number(v) || 0)} />
+        <Input label={lang === "ar" ? "أقل مهلة قبل الموعد (دقائق)" : "התראה מינימלית (דקות)"} type="number" value={String(f.booking_min_notice_minutes)} onChange={(v) => set("booking_min_notice_minutes", Number(v) || 0)} />
+        <Input label={lang === "ar" ? "الفاصل بين المواعيد (دقائق)" : "מרווח בין תורים (דקות)"} type="number" value={String(f.booking_slot_interval_minutes)} onChange={(v) => set("booking_slot_interval_minutes", Number(v) || 0)} />
+        <TextArea label={lang === "ar" ? "ملاحظة للزبونة (عربية)" : "הערה ללקוחה (ערבית)"} value={f.booking_notice_ar || ""} onChange={(v) => set("booking_notice_ar", v || null)} />
+        <TextArea label={lang === "ar" ? "ملاحظة للزبونة (عبرية)" : "הערה ללקוחה (עברית)"} value={f.booking_notice_he || ""} onChange={(v) => set("booking_notice_he", v || null)} />
+      </Section>
+
+      <Section title={lang === "ar" ? "تحسين محركات البحث (SEO)" : "SEO"}>
+        <Input label={lang === "ar" ? "عنوان الصفحة" : "כותרת הדף"} value={f.seo_title || ""} onChange={(v) => set("seo_title", v || null)} />
+        <Input label={lang === "ar" ? "كلمات مفتاحية" : "מילות מפתח"} value={f.seo_keywords || ""} onChange={(v) => set("seo_keywords", v || null)} />
+        <TextArea label={lang === "ar" ? "وصف الصفحة" : "תיאור הדף"} value={f.seo_description || ""} onChange={(v) => set("seo_description", v || null)} />
+        <Input label={lang === "ar" ? "صورة المشاركة (OG)" : "תמונת שיתוף (OG)"} value={f.og_image_url || ""} onChange={(v) => set("og_image_url", v || null)} />
+        <Input label="Google site verification" value={f.google_site_verification || ""} onChange={(v) => set("google_site_verification", v || null)} />
+      </Section>
+
+      <Section title={lang === "ar" ? "التحليلات" : "אנליטיקס"}>
+        <Input label="Google Analytics (G-XXXX)" value={f.ga_measurement_id || ""} onChange={(v) => set("ga_measurement_id", v || null)} />
+        <Input label="Google Tag Manager (GTM-XXXX)" value={f.gtm_id || ""} onChange={(v) => set("gtm_id", v || null)} />
+        <Input label="Meta Pixel ID" value={f.meta_pixel_id || ""} onChange={(v) => set("meta_pixel_id", v || null)} />
+        <Input label="TikTok Pixel ID" value={f.tiktok_pixel_id || ""} onChange={(v) => set("tiktok_pixel_id", v || null)} />
+      </Section>
+
+      <Section title={lang === "ar" ? "المدفوعات" : "תשלומים"}>
+        <Check label={lang === "ar" ? "تفعيل المدفوعات" : "אפשר תשלומים"} value={f.payments_enabled} onChange={(v) => set("payments_enabled", v)} />
+        <Input label={lang === "ar" ? "مزود الدفع" : "ספק תשלום"} value={f.payment_provider || ""} onChange={(v) => set("payment_provider", v || null)} />
+        <Check label={lang === "ar" ? "طلب عربون" : "דרוש מקדמה"} value={f.deposit_enabled} onChange={(v) => set("deposit_enabled", v)} />
+        <Input label={lang === "ar" ? "قيمة العربون" : "סכום מקדמה"} type="number" value={String(f.deposit_amount)} onChange={(v) => set("deposit_amount", Number(v) || 0)} />
       </Section>
 
       <Section title={t("footer")}>
@@ -387,6 +444,14 @@ function ServicesPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<Service> | null>(null);
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories-admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("service_categories" as never).select("*").order("sort_order");
+      if (error) throw error;
+      return (data || []) as unknown as CategoryRow[];
+    },
+  });
 
   const { data = [] } = useQuery({
     queryKey: ["services-admin"],
@@ -413,6 +478,8 @@ function ServicesPanel() {
       duration_minutes: Number(editing.duration_minutes) || 60,
       is_active: editing.is_active ?? true,
       sort_order: Number(editing.sort_order) || 0,
+      image_url: editing.image_url?.trim() || null,
+      category_id: editing.category_id || null,
     };
     if (!payload.name_ar || !payload.name_he || !payload.price) return toast.error(t("required"));
     const { error } = editing.id
@@ -481,6 +548,119 @@ function ServicesPanel() {
               <Input label={t("price") + " ₪"} type="number" value={String(editing.price ?? "")} onChange={(v) => setEditing({ ...editing, price: Number(v) })} />
               <Input label={t("duration") + " (" + t("minutes") + ")"} type="number" value={String(editing.duration_minutes ?? "")} onChange={(v) => setEditing({ ...editing, duration_minutes: Number(v) })} />
             </div>
+            <Input label={lang === "ar" ? "رابط صورة الخدمة" : "קישור תמונת שירות"} value={editing.image_url || ""} onChange={(v) => setEditing({ ...editing, image_url: v })} />
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">{lang === "ar" ? "الفئة" : "קטגוריה"}</span>
+              <select
+                value={editing.category_id || ""}
+                onChange={(e) => setEditing({ ...editing, category_id: e.target.value || null })}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">{lang === "ar" ? "بدون فئة" : "ללא קטגוריה"}</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{lang === "ar" ? c.name_ar : c.name_he}</option>
+                ))}
+              </select>
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setEditing(null)} className="rounded-lg border border-border px-4 py-2 text-sm">{t("cancel")}</button>
+              <button onClick={save} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">{t("save")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Check({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm">
+      <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
+      {label}
+    </label>
+  );
+}
+
+/* ---------------- SERVICE CATEGORIES ---------------- */
+function CategoriesPanel() {
+  const { t, lang } = useLang();
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState<Partial<CategoryRow> | null>(null);
+
+  const { data = [] } = useQuery({
+    queryKey: ["categories-admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("service_categories" as never).select("*").order("sort_order");
+      if (error) throw error;
+      return (data || []) as unknown as CategoryRow[];
+    },
+  });
+
+  function refresh() {
+    qc.invalidateQueries({ queryKey: ["categories-admin"] });
+    qc.invalidateQueries({ queryKey: ["service-categories"] });
+  }
+
+  async function save() {
+    if (!editing) return;
+    const payload = {
+      name_ar: editing.name_ar?.trim() || "",
+      name_he: editing.name_he?.trim() || "",
+      sort_order: Number(editing.sort_order) || 0,
+      is_active: editing.is_active ?? true,
+    };
+    if (!payload.name_ar || !payload.name_he) return toast.error(t("required"));
+    const { error } = editing.id
+      ? await supabase.from("service_categories" as never).update(payload as never).eq("id", editing.id)
+      : await supabase.from("service_categories" as never).insert(payload as never);
+    if (error) return toast.error(error.message);
+    refresh(); setEditing(null); toast.success(t("success"));
+  }
+
+  async function remove(id: string) {
+    if (!confirm(lang === "ar" ? "حذف الفئة؟" : "למחוק את הקטגוריה?")) return;
+    const { error } = await supabase.from("service_categories" as never).delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    refresh();
+  }
+
+  async function move(i: number, dir: -1 | 1) {
+    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
+    await swapOrder("service_categories", a, b); refresh();
+  }
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={() => setEditing({ name_ar: "", name_he: "", sort_order: data.length, is_active: true })}
+        className="flex items-center gap-2 rounded-xl px-4 py-2 font-bold text-primary-foreground"
+        style={{ background: "var(--gradient-primary)" }}
+      >
+        <Plus className="h-4 w-4" />{t("add")}
+      </button>
+
+      {data.map((c, i) => (
+        <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <ReorderButtons onUp={() => move(i, -1)} onDown={() => move(i, 1)} disabledUp={i === 0} disabledDown={i === data.length - 1} />
+            <div className="truncate font-bold">{c.name_ar} <span className="text-muted-foreground">/ {c.name_he}</span></div>
+            {!c.is_active && <span className="text-xs text-destructive">{lang === "ar" ? "متوقف" : "מושבת"}</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setEditing(c)} className="rounded-lg border border-border p-1.5 hover:border-primary"><Pencil className="h-4 w-4" /></button>
+            <button onClick={() => remove(c.id)} className="rounded-lg border border-border p-1.5 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button>
+          </div>
+        </div>
+      ))}
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditing(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-3 rounded-3xl bg-card p-6 shadow-2xl">
+            <h3 className="text-lg font-bold">{editing.id ? t("edit") : t("add")}</h3>
+            <Input label={t("nameAr")} value={editing.name_ar || ""} onChange={(v) => setEditing({ ...editing, name_ar: v })} />
+            <Input label={t("nameHe")} value={editing.name_he || ""} onChange={(v) => setEditing({ ...editing, name_he: v })} />
+            <Check label={lang === "ar" ? "مفعّلة" : "פעילה"} value={editing.is_active ?? true} onChange={(v) => setEditing({ ...editing, is_active: v })} />
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setEditing(null)} className="rounded-lg border border-border px-4 py-2 text-sm">{t("cancel")}</button>
               <button onClick={save} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">{t("save")}</button>
