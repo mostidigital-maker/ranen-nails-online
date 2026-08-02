@@ -93,7 +93,9 @@ function Index() {
         <GallerySection />
         <TestimonialsSection />
         <FaqSection />
-        <BookingForm services={services} preselectedId={preselectedService} onConsumePreselect={() => setPreselectedService("")} />
+        {settings?.booking_enabled !== false && (
+          <BookingForm services={services} preselectedId={preselectedService} onConsumePreselect={() => setPreselectedService("")} />
+        )}
         <ContactSection />
       </main>
       <SiteFooter />
