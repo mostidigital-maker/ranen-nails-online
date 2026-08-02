@@ -197,8 +197,8 @@ function AppointmentsPanel() {
   return (
     <div className="space-y-3">
       {data.map((a) => {
-        const bizName = lang === "ar" ? (settings?.business_name_ar || "") : (settings?.business_name_he || "");
-    const dt = new Date(a.appointment_at);
+        const dt = new Date(a.appointment_at);
+
         return (
           <div key={a.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
