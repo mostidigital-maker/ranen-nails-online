@@ -458,7 +458,7 @@ function ServicesPanel() {
     queryFn: async () => {
       const { data, error } = await supabase.from("services").select("*").order("sort_order");
       if (error) throw error;
-      return data as Service[];
+      return (data || []) as unknown as Service[];
     },
   });
 
@@ -483,8 +483,8 @@ function ServicesPanel() {
     };
     if (!payload.name_ar || !payload.name_he || !payload.price) return toast.error(t("required"));
     const { error } = editing.id
-      ? await supabase.from("services").update(payload).eq("id", editing.id)
-      : await supabase.from("services").insert(payload);
+      ? await supabase.from("services").update(payload as never).eq("id", editing.id)
+      : await supabase.from("services").insert(payload as never);
     if (error) return toast.error(error.message);
     refresh(); setEditing(null); toast.success(t("success"));
   }
