@@ -13,6 +13,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { LanguageProvider } from "../lib/i18n";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { AnalyticsScripts } from "@/components/AnalyticsScripts";
+
 
 function NotFoundComponent() {
   return (
