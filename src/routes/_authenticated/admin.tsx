@@ -138,6 +138,8 @@ function AdminPage() {
 function AppointmentsPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
+  const { data: settings } = useSiteSettings();
+
   const { data = [], isLoading } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {
