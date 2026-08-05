@@ -684,11 +684,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function SlotPicker({ date, duration, value, onChange }: { date: string; duration: number; value: string; onChange: (v: string) => void }) {
   const { t } = useLang();
   const enabled = !!date && !!duration;
-  const { data, isLoading } = useQuery({
-    queryKey: ["slots", date, duration],
-    queryFn: () => getAvailableSlots(date, duration),
-    enabled, staleTime: 30_000,
-  });
+  const { data, isLoading } = useAvailableSlots(date, duration);
+
 
   if (!enabled) return <div className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("pickDateService")}</div>;
   if (isLoading) return <div className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("loadingSlots")}</div>;
