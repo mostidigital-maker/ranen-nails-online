@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, db } from "@/core/supabase/db";
 import { anyRoleCan, type Permission, type Role, ROLES } from "./roles";
 
 /** Reads the roles granted to the signed-in user from `user_roles`. */
 export async function fetchCurrentRoles(): Promise<Role[]> {
-  const { data: u } = await supabase.auth.getUser();
+  const { data: u } = await auth.getUser();
   if (!u.user) return [];
-  const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
+  const { data, error } = await db.from("user_roles").select("role").eq("user_id", u.user.id);
   if (error) return [];
   return (data || [])
     .map((r) => r.role as Role)
