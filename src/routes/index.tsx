@@ -14,7 +14,6 @@ import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
 import { QK } from "@/core/config/queryKeys";
-import { APP_CONFIG } from "@/core/config/app.config";
 import { reportError, reportSuccess } from "@/core/errors/appError";
 import { useSiteSettings } from "@/features/settings/hooks";
 import { usePublicServices, useServiceCategories } from "@/features/services/hooks";
