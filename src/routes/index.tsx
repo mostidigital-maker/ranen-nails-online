@@ -62,19 +62,8 @@ function Index() {
   const { data: settings } = useSiteSettings();
   const [preselectedService, setPreselectedService] = useState<string>("");
 
-  const { data: services = [] } = useQuery({
-    queryKey: ["services-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("services")
-        .select("id,name_ar,name_he,description_ar,description_he,price,duration_minutes,image_url,category_id")
-        .eq("is_active", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data as unknown as Service[];
+  const { data: services = [] } = usePublicServices();
 
-    },
-  });
 
   function bookService(id: string) {
     setPreselectedService(id);
