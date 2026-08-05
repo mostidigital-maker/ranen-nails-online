@@ -554,45 +554,56 @@ function BookingForm({ services, preselectedId, onConsumePreselect }: { services
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.phone || !form.serviceId || !form.date || !form.time) {
-      toast.error(t("required")); return;
-    }
     const service = services.find((s) => s.id === form.serviceId);
+
+    const appointmentAt = combineDateTime(form.date, form.time);
+    const check = firstError(
+      requireFields([form.name, form.phone, form.serviceId, form.date, form.time], t("required")),
+      service ? { ok: true as const } : { ok: false as const, message: t("required") },
+      isFutureDate(appointmentAt, lang === "ar" ? "اختاري وقتاً في المستقبل" : "בחרי זמן עתידי"),
+    );
+    if (!check.ok) { reportError(check.message); return; }
     if (!service) return;
 
-    const appointmentAt = new Date(`${form.date}T${form.time}:00`);
-    if (appointmentAt.getTime() <= Date.now()) {
-      toast.error(lang === "ar" ? "اختاري وقتاً في المستقبل" : "בחרי זמן עתידי");
+    setSubmitting(true);
+    try {
+      await bookingService.createAppointment({
+        client_name: form.name.trim(),
+        client_phone: form.phone.trim(),
+        service_id: service.id,
+        service_name: pickLang(service.name_ar, service.name_he, lang),
+        service_price: service.price,
+        appointment_at: appointmentAt.toISOString(),
+        notes: form.notes.trim() || null,
+      });
+    } catch (err) {
+      setSubmitting(false);
+      reportError(err, t("error"));
       return;
     }
-
-    setSubmitting(true);
-    const serviceName = lang === "ar" ? service.name_ar : service.name_he;
-    const { error } = await supabase.from("appointments").insert({
-      client_name: form.name.trim(),
-      client_phone: form.phone.trim(),
-      service_id: service.id,
-      service_name: serviceName,
-      service_price: service.price,
-      appointment_at: appointmentAt.toISOString(),
-      notes: form.notes.trim() || null,
-    });
     setSubmitting(false);
-    if (error) { toast.error(t("error") + ": " + error.message); return; }
 
-    const cur = settings?.currency || "";
-    const msg = lang === "ar"
-      ? `حجز جديد 💅\nالاسم: ${form.name}\nالهاتف: ${form.phone}\nالخدمة: ${service.name_ar}\nالسعر: ${service.price}${cur}\nالتاريخ: ${form.date}\nالوقت: ${form.time}${form.notes ? `\nملاحظات: ${form.notes}` : ""}`
-      : `תור חדש 💅\nשם: ${form.name}\nטלפון: ${form.phone}\nשירות: ${service.name_he}\nמחיר: ${service.price}${cur}\nתאריך: ${form.date}\nשעה: ${form.time}${form.notes ? `\nהערות: ${form.notes}` : ""}`;
-    const wa = (settings?.whatsapp || "").replace(/\D/g, "");
-    if (wa) window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, "_blank");
-    toast.success(t("bookingSent"));
+    const msg = whatsappTemplates.newBooking({
+      lang,
+      clientName: form.name,
+      clientPhone: form.phone,
+      serviceNameAr: service.name_ar,
+      serviceNameHe: service.name_he,
+      price: service.price,
+      currency: settings?.currency || "",
+      date: form.date,
+      time: form.time,
+      notes: form.notes,
+    });
+    whatsappService.open(whatsappService.businessLink(settings?.whatsapp || "", msg));
+    reportSuccess(t("bookingSent"));
     setSuccess(true);
-    qc.invalidateQueries({ queryKey: ["slots"] });
+    qc.invalidateQueries({ queryKey: QK.slots() });
     setForm({ name: "", phone: "", serviceId: "", date: "", time: "", notes: "" });
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISODate();
+
 
   return (
     <section id="booking" className="px-4 py-16">
