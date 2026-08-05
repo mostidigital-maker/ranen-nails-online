@@ -198,17 +198,10 @@ function HeroSection({ bizName, tagline, address }: { bizName: string; tagline: 
 }
 
 /* ---------------- STATS ---------------- */
-type Stat = { id: string; label_ar: string; label_he: string; value: number; suffix: string | null };
 function StatsSection() {
   const { lang } = useLang();
-  const { data = [] } = useQuery({
-    queryKey: ["stats-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("stats" as never).select("*").eq("is_active", true).order("sort_order");
-      if (error) throw error;
-      return data as unknown as Stat[];
-    },
-  });
+  const { data = [] } = usePublicStats();
+
   if (!data.length) return null;
   return (
     <section className="px-4 py-14">
