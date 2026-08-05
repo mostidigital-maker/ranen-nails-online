@@ -1,11 +1,38 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/lib/i18n";
-import { useSiteSettings, PAYMENT_PROVIDERS } from "@/lib/site";
 import { SiteHeader } from "@/components/SiteHeader";
-import { toast } from "sonner";
+import { QK } from "@/core/config/queryKeys";
+import { auth } from "@/core/supabase/db";
+import { reportError, reportSuccess } from "@/core/errors/appError";
+import { usePermissions } from "@/core/permissions/usePermissions";
+import { PAYMENT_PROVIDERS } from "@/features/payments/payments.config";
+import { useSiteSettings, useSiteSettingsAdmin } from "@/features/settings/hooks";
+import { siteSettingsService } from "@/features/settings/siteSettings.service";
+import type { SiteSettings } from "@/features/settings/types";
+import { useAdminCategories, useAdminServices } from "@/features/services/hooks";
+import { servicesService } from "@/features/services/services.service";
+import { categoriesService } from "@/features/services/categories.service";
+import type { Service as ServiceRow, ServiceCategory } from "@/features/services/types";
+import { useAppointments, useBlockedSlots, useBusinessHours } from "@/features/booking/hooks";
+import { bookingService } from "@/features/booking/booking.service";
+import type { Appointment as AppointmentRow, BlockedSlot, BusinessHours } from "@/features/booking/types";
+import { useAdminGallery } from "@/features/gallery/hooks";
+import { galleryService } from "@/features/gallery/gallery.service";
+import type { GalleryItem } from "@/features/gallery/types";
+import { statsService, type Stat } from "@/features/stats/stats.service";
+import { aboutService, type AboutCard } from "@/features/about/about.service";
+import { testimonialsService, type Testimonial } from "@/features/testimonials/testimonials.service";
+import { faqService, type Faq } from "@/features/faq/faq.service";
+import { whatsappService, whatsappTemplates } from "@/features/notifications/whatsapp.service";
+import { pickLang } from "@/shared/utils/localized";
+import { clampRating, firstError, isEndAfterStart, requireFields } from "@/shared/validation/validators";
+import { combineDateTime } from "@/shared/utils/datetime";
+import { moveInList } from "@/shared/utils/ordering";
+import { Check, Input, TextArea } from "@/shared/ui/FormFields";
+import { Modal, ModalActions } from "@/shared/ui/Modal";
+import { ReorderButtons } from "@/shared/ui/ReorderButtons";
 import {
   CheckCircle2, XCircle, Trash2, Plus, MessageCircle, Calendar, Settings, LogOut,
   Pencil, Clock, Ban, Image as ImageIcon, Upload, Star, HelpCircle, LayoutGrid,
@@ -21,22 +48,9 @@ type TabKey =
   | "appointments" | "services" | "gallery" | "hours" | "blocks"
   | "settings" | "categories" | "stats" | "about" | "testimonials" | "faq";
 
-type Appointment = {
-  id: string; client_name: string; client_phone: string; service_name: string;
-  service_price: number; appointment_at: string;
-  status: "pending" | "confirmed" | "cancelled"; notes: string | null;
-};
-
-type Service = {
-  id: string; name_ar: string; name_he: string;
-  description_ar: string | null; description_he: string | null;
-  price: number; duration_minutes: number; is_active: boolean; sort_order: number;
-  image_url: string | null; category_id: string | null;
-};
-
-type CategoryRow = {
-  id: string; name_ar: string; name_he: string; sort_order: number; is_active: boolean;
-};
+type Appointment = AppointmentRow;
+type Service = ServiceRow;
+type CategoryRow = ServiceCategory;
 
 const TABS: { key: TabKey; labelAr: string; labelHe: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "appointments", labelAr: "المواعيد", labelHe: "תורים", icon: Calendar },
@@ -56,28 +70,17 @@ function AdminPage() {
   const { t, lang } = useLang();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>("appointments");
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const qc = useQueryClient();
-
-  useEffect(() => {
-    (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
-      const { data } = await supabase
-        .from("user_roles").select("role")
-        .eq("user_id", u.user.id).eq("role", "admin").maybeSingle();
-      setIsAdmin(!!data);
-    })();
-  }, []);
+  const { isAdmin, isLoading: rolesLoading } = usePermissions();
 
   async function signOut() {
     await qc.cancelQueries();
     qc.clear();
-    await supabase.auth.signOut();
+    await auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
 
-  if (isAdmin === false) {
+  if (!rolesLoading && !isAdmin) {
     return (
       <div className="min-h-dvh">
         <SiteHeader />
@@ -148,51 +151,44 @@ function AppointmentsPanel() {
   const qc = useQueryClient();
   const { data: settings } = useSiteSettings();
 
-  const { data = [], isLoading } = useQuery({
-    queryKey: ["appointments"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("appointments").select("*").order("appointment_at", { ascending: true });
-      if (error) throw error;
-      return data as Appointment[];
-    },
-  });
+  const { data = [], isLoading } = useAppointments();
 
-  useEffect(() => {
-    const channel = supabase
-      .channel("appointments-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => {
-        qc.invalidateQueries({ queryKey: ["appointments"] });
-        qc.invalidateQueries({ queryKey: ["slots"] });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [qc]);
+  useEffect(() => bookingService.subscribeAppointments(() => {
+    qc.invalidateQueries({ queryKey: QK.appointments });
+    qc.invalidateQueries({ queryKey: QK.slots() });
+  }), [qc]);
 
   async function updateStatus(a: Appointment, status: "confirmed" | "cancelled") {
-    const { error } = await supabase.from("appointments").update({ status }).eq("id", a.id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["appointments"] });
-    const bizName = lang === "ar" ? (settings?.business_name_ar || "") : (settings?.business_name_he || "");
-    const dt = new Date(a.appointment_at);
-    const dateStr = dt.toLocaleDateString(lang === "ar" ? "ar" : "he");
-    const timeStr = dt.toLocaleTimeString(lang === "ar" ? "ar" : "he", { hour: "2-digit", minute: "2-digit" });
-    const msg = status === "confirmed"
-      ? (lang === "ar"
-          ? `مرحباً ${a.client_name} 💕\nتم تأكيد موعدك في ${bizName}:\nالخدمة: ${a.service_name}\nالتاريخ: ${dateStr}\nالوقت: ${timeStr}\nبانتظارك!`
-          : `שלום ${a.client_name} 💕\nהתור שלך ב${bizName} אושר:\nשירות: ${a.service_name}\nתאריך: ${dateStr}\nשעה: ${timeStr}\nמחכה לך!`)
-      : (lang === "ar"
-          ? `مرحباً ${a.client_name}\nنعتذر، تم إلغاء موعدك:\nالخدمة: ${a.service_name}\nالتاريخ: ${dateStr} ${timeStr}\nتواصلي معنا لتحديد موعد جديد.`
-          : `שלום ${a.client_name}\nלצערנו התור שלך בוטל:\nשירות: ${a.service_name}\nתאריך: ${dateStr} ${timeStr}\nצרי קשר לקביעת תור חדש.`);
-    const phone = a.client_phone.replace(/\D/g, "").replace(/^0/, "972");
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
-    toast.success(t("success"));
+    try {
+      await bookingService.updateStatus(a.id, status);
+    } catch (err) {
+      reportError(err, t("error"));
+      return;
+    }
+    qc.invalidateQueries({ queryKey: QK.appointments });
+    qc.invalidateQueries({ queryKey: QK.slots() });
+    const input = {
+      lang,
+      businessName: settings ? pickLang(settings.business_name_ar, settings.business_name_he, lang) : "",
+      clientName: a.client_name,
+      serviceName: a.service_name,
+      appointmentAt: a.appointment_at,
+    };
+    const msg = status === "confirmed" ? whatsappTemplates.confirmed(input) : whatsappTemplates.cancelled(input);
+    whatsappService.open(whatsappService.clientLink(a.client_phone, msg));
+    reportSuccess(t("success"));
   }
 
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف الموعد؟" : "למחוק את התור?")) return;
-    const { error } = await supabase.from("appointments").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["appointments"] });
+    try {
+      await bookingService.removeAppointment(id);
+    } catch (err) {
+      reportError(err, t("error"));
+      return;
+    }
+    qc.invalidateQueries({ queryKey: QK.appointments });
+    qc.invalidateQueries({ queryKey: QK.slots() });
   }
 
   if (isLoading) return <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground" role="status" aria-live="polite">{t("loadingSlots")}</div>;
@@ -234,7 +230,7 @@ function AppointmentsPanel() {
                     <XCircle className="h-4 w-4" />{t("cancel")}
                   </button>
                 )}
-                <a href={`https://wa.me/${a.client_phone.replace(/\D/g, "").replace(/^0/, "972")}`} target="_blank" rel="noreferrer"
+                <a href={whatsappService.clientLink(a.client_phone)} target="_blank" rel="noreferrer"
                    className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm hover:border-primary">
                   <MessageCircle className="h-4 w-4" />WhatsApp
                 </a>
@@ -251,79 +247,14 @@ function AppointmentsPanel() {
 }
 
 /* ---------------- Helpers ---------------- */
-function Input({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none focus:border-primary" />
-    </label>
-  );
-}
-function TextArea({ label, value, onChange, rows = 3 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
-      <textarea rows={rows} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none focus:border-primary" />
-    </label>
-  );
-}
-
-async function swapOrder(table: string, a: { id: string; sort_order: number }, b: { id: string; sort_order: number }) {
-  await supabase.from(table as never).update({ sort_order: b.sort_order } as never).eq("id", a.id);
-  await supabase.from(table as never).update({ sort_order: a.sort_order } as never).eq("id", b.id);
-}
-
-function ReorderButtons({ onUp, onDown, disabledUp, disabledDown }: { onUp: () => void; onDown: () => void; disabledUp?: boolean; disabledDown?: boolean }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <button onClick={onUp} disabled={disabledUp} className="rounded-md border border-border p-1 disabled:opacity-30 hover:border-primary"><ArrowUp className="h-3 w-3" /></button>
-      <button onClick={onDown} disabled={disabledDown} className="rounded-md border border-border p-1 disabled:opacity-30 hover:border-primary"><ArrowDown className="h-3 w-3" /></button>
-    </div>
-  );
-}
-
 /* ---------------- SETTINGS ---------------- */
-type SiteSettingsRow = {
-  id: number;
-  business_name_ar: string; business_name_he: string;
-  tagline_ar: string; tagline_he: string;
-  logo_url: string | null;
-  hero_title_ar: string; hero_title_he: string;
-  hero_subtitle_ar: string; hero_subtitle_he: string;
-  hero_image_url: string | null;
-  about_title_ar: string; about_title_he: string;
-  about_text_ar: string; about_text_he: string;
-  phone: string; whatsapp: string; instagram: string | null;
-  address_ar: string; address_he: string; maps_url: string | null;
-  hours_text_ar: string; hours_text_he: string;
-  footer_text_ar: string; footer_text_he: string;
-  brand_latin: string | null; favicon_url: string | null; currency: string; timezone: string;
-  email: string | null; facebook_url: string | null; tiktok_url: string | null; youtube_url: string | null;
-  booking_enabled: boolean; online_payments_enabled: boolean;
-  booking_max_days_ahead: number;
-  booking_min_notice_minutes: number; booking_slot_interval_minutes: number;
-  seo_title: string | null; seo_description: string | null; seo_keywords: string | null;
-  og_image_url: string | null; google_site_verification: string | null;
-  ga_measurement_id: string | null; gtm_id: string | null;
-  meta_pixel_id: string | null; tiktok_pixel_id: string | null;
-  payments_enabled: boolean; payments_provider: string; payments_mode: string;
-  payments_public_key: string | null; payments_success_url: string | null; payments_cancel_url: string | null;
-};
-
 function SettingsPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
-  const [form, setForm] = useState<SiteSettingsRow | null>(null);
+  const [form, setForm] = useState<SiteSettings | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { data } = useQuery({
-    queryKey: ["site-settings-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("site_settings" as never).select("*").eq("id", 1).maybeSingle();
-      if (error) throw error;
-      return data as unknown as SiteSettingsRow;
-    },
-  });
+  const { data } = useSiteSettingsAdmin();
   useEffect(() => { if (data && !form) setForm(data); }, [data]); // eslint-disable-line
 
   async function save() {
@@ -331,17 +262,22 @@ function SettingsPanel() {
     setSaving(true);
     const { id: _id, ...patch } = form;
     void _id;
-    const { error } = await supabase.from("site_settings" as never).update(patch as never).eq("id", 1);
+    try {
+      await siteSettingsService.update(patch);
+    } catch (err) {
+      setSaving(false);
+      reportError(err, t("error"));
+      return;
+    }
     setSaving(false);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["site-settings"] });
-    qc.invalidateQueries({ queryKey: ["site-settings-admin"] });
-    toast.success(t("success"));
+    qc.invalidateQueries({ queryKey: QK.siteSettings });
+    qc.invalidateQueries({ queryKey: QK.siteSettingsAdmin });
+    reportSuccess(t("success"));
   }
 
   if (!form) return <div className="text-center text-muted-foreground py-8">...</div>;
   const f = form;
-  const set = <K extends keyof SiteSettingsRow>(k: K, v: SiteSettingsRow[K]) => setForm({ ...f, [k]: v });
+  const set = <K extends keyof SiteSettings>(k: K, v: SiteSettings[K]) => setForm({ ...f, [k]: v });
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="rounded-2xl border border-border bg-card p-5">
@@ -458,27 +394,12 @@ function ServicesPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<Service> | null>(null);
-  const { data: categories = [] } = useQuery({
-    queryKey: ["categories-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("service_categories" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return (data || []) as unknown as CategoryRow[];
-    },
-  });
-
-  const { data = [] } = useQuery({
-    queryKey: ["services-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("services").select("*").order("sort_order");
-      if (error) throw error;
-      return (data || []) as unknown as Service[];
-    },
-  });
+  const { data: categories = [] } = useAdminCategories();
+  const { data = [] } = useAdminServices();
 
   function refresh() {
-    qc.invalidateQueries({ queryKey: ["services-admin"] });
-    qc.invalidateQueries({ queryKey: ["services-public"] });
+    qc.invalidateQueries({ queryKey: QK.servicesAdmin });
+    qc.invalidateQueries({ queryKey: QK.servicesPublic });
   }
 
   async function save() {
@@ -495,28 +416,25 @@ function ServicesPanel() {
       image_url: editing.image_url?.trim() || null,
       category_id: editing.category_id || null,
     };
-    if (!payload.name_ar || !payload.name_he || !payload.price) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("services").update(payload as never).eq("id", editing.id)
-      : await supabase.from("services").insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    if (!payload.name_ar || !payload.name_he || !payload.price) return reportError(t("required"));
+    try {
+      if (editing.id) await servicesService.update(editing.id, payload);
+      else await servicesService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
 
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف الخدمة؟" : "למחוק את השירות?")) return;
-    const { error } = await supabase.from("services").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    try { await servicesService.remove(id); } catch (err) { reportError(err, t("error")); return; }
     refresh();
   }
   async function toggleActive(s: Service) {
-    const { error } = await supabase.from("services").update({ is_active: !s.is_active }).eq("id", s.id);
-    if (error) return toast.error(error.message);
+    try { await servicesService.setActive(s.id, !s.is_active); } catch (err) { reportError(err, t("error")); return; }
     refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("services", a, b);
+    await servicesService.move(data, i, dir);
     refresh();
   }
 
@@ -587,29 +505,13 @@ function ServicesPanel() {
   );
 }
 
-function Check({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm">
-      <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
-      {label}
-    </label>
-  );
-}
-
 /* ---------------- SERVICE CATEGORIES ---------------- */
 function CategoriesPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<CategoryRow> | null>(null);
 
-  const { data = [] } = useQuery({
-    queryKey: ["categories-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("service_categories" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return (data || []) as unknown as CategoryRow[];
-    },
-  });
+  const { data = [] } = useAdminCategories();
 
   function refresh() {
     qc.invalidateQueries({ queryKey: ["categories-admin"] });
@@ -624,24 +526,23 @@ function CategoriesPanel() {
       sort_order: Number(editing.sort_order) || 0,
       is_active: editing.is_active ?? true,
     };
-    if (!payload.name_ar || !payload.name_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("service_categories" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("service_categories" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    if (!payload.name_ar || !payload.name_he) return reportError(t("required"));
+    try {
+      if (editing.id) await categoriesService.update(editing.id, payload);
+      else await categoriesService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
 
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف الفئة؟" : "למחוק את הקטגוריה?")) return;
-    const { error } = await supabase.from("service_categories" as never).delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    try { await categoriesService.remove(id); } catch (err) { reportError(err, t("error")); return; }
     refresh();
   }
 
   async function move(i: number, dir: -1 | 1) {
     const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("service_categories", a, b); refresh();
+    await categoriesService.move(data, i, dir); refresh();
   }
 
   return (
@@ -687,20 +588,14 @@ function CategoriesPanel() {
 }
 
 /* ---------------- STATS ---------------- */
-type StatRow = { id: string; label_ar: string; label_he: string; value: number; suffix: string | null; sort_order: number; is_active: boolean };
+type StatRow = Stat;
 function StatsPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<StatRow> | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["stats-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("stats" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return data as unknown as StatRow[];
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["stats-admin"] }); qc.invalidateQueries({ queryKey: ["stats-public"] }); };
+  const { data = [] } = useQuery({ queryKey: QK.statsAdmin, queryFn: () => statsService.listAll() });
+  const refresh = () => { qc.invalidateQueries({ queryKey: QK.statsAdmin }); qc.invalidateQueries({ queryKey: QK.statsPublic }); };
+  
 
   async function save() {
     if (!editing) return;
@@ -712,24 +607,23 @@ function StatsPanel() {
       sort_order: Number(editing.sort_order) || 0,
       is_active: editing.is_active ?? true,
     };
-    if (!payload.label_ar || !payload.label_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("stats" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("stats" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    if (!payload.label_ar || !payload.label_he) return reportError(t("required"));
+    try {
+      if (editing.id) await statsService.update(editing.id, payload);
+      else await statsService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف؟" : "למחוק?")) return;
-    const { error } = await supabase.from("stats" as never).delete().eq("id", id);
-    if (error) return toast.error(error.message); refresh();
+    try { await statsService.remove(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("stats", a, b); refresh();
+    await statsService.move(data, i, dir); refresh();
   }
   async function toggleActive(r: StatRow) {
-    await supabase.from("stats" as never).update({ is_active: !r.is_active } as never).eq("id", r.id); refresh();
+    await statsService.setActive(r.id, !r.is_active); refresh();
   }
 
   return (
@@ -764,7 +658,7 @@ function StatsPanel() {
             <Input label={t("value")} type="number" value={String(editing.value ?? 0)} onChange={(v) => setEditing({ ...editing, value: Number(v) })} />
             <Input label={t("suffix")} value={editing.suffix || ""} onChange={(v) => setEditing({ ...editing, suffix: v })} />
           </div>
-          <ModalActions onCancel={() => setEditing(null)} onSave={save} t={t} />
+          <ModalActions onCancel={() => setEditing(null)} onSave={save} cancelLabel={t("cancel")} saveLabel={t("save")} />
         </Modal>
       )}
     </div>
@@ -772,20 +666,14 @@ function StatsPanel() {
 }
 
 /* ---------------- ABOUT CARDS ---------------- */
-type AboutRow = { id: string; icon: string; title_ar: string; title_he: string; text_ar: string; text_he: string; sort_order: number; is_active: boolean };
+type AboutRow = AboutCard;
 function AboutPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<AboutRow> | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["about-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("about_cards" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return data as unknown as AboutRow[];
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["about-admin"] }); qc.invalidateQueries({ queryKey: ["about-cards-public"] }); };
+  const { data = [] } = useQuery({ queryKey: QK.aboutAdmin, queryFn: () => aboutService.listAll() });
+  const refresh = () => { qc.invalidateQueries({ queryKey: QK.aboutAdmin }); qc.invalidateQueries({ queryKey: QK.aboutPublic }); };
+  
   async function save() {
     if (!editing) return;
     const payload = {
@@ -794,23 +682,23 @@ function AboutPanel() {
       text_ar: editing.text_ar?.trim() || "", text_he: editing.text_he?.trim() || "",
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
-    if (!payload.title_ar || !payload.title_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("about_cards" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("about_cards" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    if (!payload.title_ar || !payload.title_he) return reportError(t("required"));
+    try {
+      if (editing.id) await aboutService.update(editing.id, payload);
+      else await aboutService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف؟" : "למחוק?")) return;
-    await supabase.from("about_cards" as never).delete().eq("id", id); refresh();
+    try { await aboutService.remove(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("about_cards", a, b); refresh();
+    await aboutService.move(data, i, dir); refresh();
   }
   async function toggleActive(r: AboutRow) {
-    await supabase.from("about_cards" as never).update({ is_active: !r.is_active } as never).eq("id", r.id); refresh();
+    await aboutService.setActive(r.id, !r.is_active); refresh();
   }
   return (
     <div className="space-y-3">
@@ -848,7 +736,7 @@ function AboutPanel() {
           <Input label={t("title") + " (he)"} value={editing.title_he || ""} onChange={(v) => setEditing({ ...editing, title_he: v })} />
           <TextArea label={t("description") + " (ar)"} value={editing.text_ar || ""} onChange={(v) => setEditing({ ...editing, text_ar: v })} />
           <TextArea label={t("description") + " (he)"} value={editing.text_he || ""} onChange={(v) => setEditing({ ...editing, text_he: v })} />
-          <ModalActions onCancel={() => setEditing(null)} onSave={save} t={t} />
+          <ModalActions onCancel={() => setEditing(null)} onSave={save} cancelLabel={t("cancel")} saveLabel={t("save")} />
         </Modal>
       )}
     </div>
@@ -856,45 +744,39 @@ function AboutPanel() {
 }
 
 /* ---------------- TESTIMONIALS ---------------- */
-type TestimonialRow = { id: string; name: string; text_ar: string; text_he: string; rating: number; sort_order: number; is_active: boolean };
+type TestimonialRow = Testimonial;
 function TestimonialsPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<TestimonialRow> | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["testimonials-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("testimonials" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return data as unknown as TestimonialRow[];
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["testimonials-admin"] }); qc.invalidateQueries({ queryKey: ["testimonials-public"] }); };
+  const { data = [] } = useQuery({ queryKey: QK.testimonialsAdmin, queryFn: () => testimonialsService.listAll() });
+  const refresh = () => { qc.invalidateQueries({ queryKey: QK.testimonialsAdmin }); qc.invalidateQueries({ queryKey: QK.testimonialsPublic }); };
+  
   async function save() {
     if (!editing) return;
     const payload = {
       name: editing.name?.trim() || "",
       text_ar: editing.text_ar?.trim() || "", text_he: editing.text_he?.trim() || "",
-      rating: Math.min(5, Math.max(1, Number(editing.rating) || 5)),
+      rating: clampRating(editing.rating),
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
-    if (!payload.name || !payload.text_ar || !payload.text_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("testimonials" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("testimonials" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    if (!payload.name || !payload.text_ar || !payload.text_he) return reportError(t("required"));
+    try {
+      if (editing.id) await testimonialsService.update(editing.id, payload);
+      else await testimonialsService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف؟" : "למחוק?")) return;
-    await supabase.from("testimonials" as never).delete().eq("id", id); refresh();
+    try { await testimonialsService.remove(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("testimonials", a, b); refresh();
+    await testimonialsService.move(data, i, dir); refresh();
   }
   async function toggleActive(r: TestimonialRow) {
-    await supabase.from("testimonials" as never).update({ is_active: !r.is_active } as never).eq("id", r.id); refresh();
+    await testimonialsService.setActive(r.id, !r.is_active); refresh();
   }
   return (
     <div className="space-y-3">
@@ -928,7 +810,7 @@ function TestimonialsPanel() {
           <TextArea label={t("reviewText") + " (ar)"} value={editing.text_ar || ""} onChange={(v) => setEditing({ ...editing, text_ar: v })} />
           <TextArea label={t("reviewText") + " (he)"} value={editing.text_he || ""} onChange={(v) => setEditing({ ...editing, text_he: v })} />
           <Input label={t("rating") + " (1-5)"} type="number" value={String(editing.rating ?? 5)} onChange={(v) => setEditing({ ...editing, rating: Number(v) })} />
-          <ModalActions onCancel={() => setEditing(null)} onSave={save} t={t} />
+          <ModalActions onCancel={() => setEditing(null)} onSave={save} cancelLabel={t("cancel")} saveLabel={t("save")} />
         </Modal>
       )}
     </div>
@@ -936,20 +818,14 @@ function TestimonialsPanel() {
 }
 
 /* ---------------- FAQ ---------------- */
-type FaqRow = { id: string; question_ar: string; question_he: string; answer_ar: string; answer_he: string; sort_order: number; is_active: boolean };
+type FaqRow = Faq;
 function FaqPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<FaqRow> | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["faqs-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("faqs" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return data as unknown as FaqRow[];
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["faqs-admin"] }); qc.invalidateQueries({ queryKey: ["faqs-public"] }); };
+  const { data = [] } = useQuery({ queryKey: QK.faqsAdmin, queryFn: () => faqService.listAll() });
+  const refresh = () => { qc.invalidateQueries({ queryKey: QK.faqsAdmin }); qc.invalidateQueries({ queryKey: QK.faqsPublic }); };
+  
   async function save() {
     if (!editing) return;
     const payload = {
@@ -957,23 +833,23 @@ function FaqPanel() {
       answer_ar: editing.answer_ar?.trim() || "", answer_he: editing.answer_he?.trim() || "",
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
-    if (!payload.question_ar || !payload.question_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("faqs" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("faqs" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    if (!payload.question_ar || !payload.question_he) return reportError(t("required"));
+    try {
+      if (editing.id) await faqService.update(editing.id, payload);
+      else await faqService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف؟" : "למחוק?")) return;
-    await supabase.from("faqs" as never).delete().eq("id", id); refresh();
+    try { await faqService.remove(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("faqs", a, b); refresh();
+    await faqService.move(data, i, dir); refresh();
   }
   async function toggleActive(r: FaqRow) {
-    await supabase.from("faqs" as never).update({ is_active: !r.is_active } as never).eq("id", r.id); refresh();
+    await faqService.setActive(r.id, !r.is_active); refresh();
   }
   return (
     <div className="space-y-3">
@@ -1005,7 +881,7 @@ function FaqPanel() {
           <Input label={t("question") + " (he)"} value={editing.question_he || ""} onChange={(v) => setEditing({ ...editing, question_he: v })} />
           <TextArea label={t("answer") + " (ar)"} value={editing.answer_ar || ""} onChange={(v) => setEditing({ ...editing, answer_ar: v })} />
           <TextArea label={t("answer") + " (he)"} value={editing.answer_he || ""} onChange={(v) => setEditing({ ...editing, answer_he: v })} />
-          <ModalActions onCancel={() => setEditing(null)} onSave={save} t={t} />
+          <ModalActions onCancel={() => setEditing(null)} onSave={save} cancelLabel={t("cancel")} saveLabel={t("save")} />
         </Modal>
       )}
     </div>
@@ -1013,43 +889,16 @@ function FaqPanel() {
 }
 
 /* ---------------- Modal helper ---------------- */
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[90vh] w-full max-w-lg space-y-3 overflow-auto rounded-3xl bg-card p-6 shadow-2xl">
-        <h3 className="text-lg font-bold">{title}</h3>
-        {children}
-      </div>
-    </div>
-  );
-}
-function ModalActions({ onCancel, onSave, t }: { onCancel: () => void; onSave: () => void; t: (k: "cancel" | "save") => string }) {
-  return (
-    <div className="flex justify-end gap-2 pt-2">
-      <button onClick={onCancel} className="rounded-lg border border-border px-4 py-2 text-sm">{t("cancel")}</button>
-      <button onClick={onSave} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">{t("save")}</button>
-    </div>
-  );
-}
-
 /* ---------------- HOURS ---------------- */
-type Hours = { id: string; day_of_week: number; is_closed: boolean; open_time: string; close_time: string; slot_step_minutes: number };
+type Hours = BusinessHours;
 function HoursPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
-  const { data = [] } = useQuery({
-    queryKey: ["business-hours"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("business_hours").select("*").order("day_of_week");
-      if (error) throw error;
-      return data as Hours[];
-    },
-  });
+  const { data = [] } = useBusinessHours();
   async function update(h: Hours, patch: Partial<Hours>) {
-    const { error } = await supabase.from("business_hours").update(patch).eq("id", h.id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["business-hours"] });
-    qc.invalidateQueries({ queryKey: ["slots"] });
+    try { await bookingService.updateHours(h.id, patch); } catch (err) { reportError(err, t("error")); return; }
+    qc.invalidateQueries({ queryKey: QK.businessHours });
+    qc.invalidateQueries({ queryKey: QK.slots() });
   }
   return (
     <div className="space-y-2">
@@ -1082,36 +931,34 @@ function HoursPanel() {
 }
 
 /* ---------------- BLOCKS ---------------- */
-type Block = { id: string; start_at: string; end_at: string; reason: string | null };
+type Block = BlockedSlot;
 function BlocksPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [form, setForm] = useState({ date: "", start: "", end: "", reason: "" });
-  const { data = [] } = useQuery({
-    queryKey: ["blocked-slots"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("blocked_slots").select("*").gte("end_at", new Date().toISOString()).order("start_at");
-      if (error) throw error;
-      return data as Block[];
-    },
-  });
+  const { data = [] } = useBlockedSlots();
+  function refresh() {
+    qc.invalidateQueries({ queryKey: QK.blockedSlots });
+    qc.invalidateQueries({ queryKey: QK.slots() });
+  }
   async function add() {
-    if (!form.date || !form.start || !form.end) return toast.error(t("required"));
-    const start = new Date(`${form.date}T${form.start}:00`);
-    const end = new Date(`${form.date}T${form.end}:00`);
-    if (end <= start) return toast.error(lang === "ar" ? "نهاية بعد البداية" : "סיום אחרי התחלה");
-    const { error } = await supabase.from("blocked_slots").insert({ start_at: start.toISOString(), end_at: end.toISOString(), reason: form.reason.trim() || null });
-    if (error) return toast.error(error.message);
+    const start = combineDateTime(form.date, form.start);
+    const end = combineDateTime(form.date, form.end);
+    const check = firstError(
+      requireFields([form.date, form.start, form.end], t("required")),
+      isEndAfterStart(start, end, lang === "ar" ? "نهاية بعد البداية" : "סיום אחרי התחלה"),
+    );
+    if (!check.ok) return reportError(check.message);
+    try {
+      await bookingService.addBlock(start.toISOString(), end.toISOString(), form.reason.trim() || null);
+    } catch (err) { reportError(err, t("error")); return; }
     setForm({ date: "", start: "", end: "", reason: "" });
-    qc.invalidateQueries({ queryKey: ["blocked-slots"] });
-    qc.invalidateQueries({ queryKey: ["slots"] });
-    toast.success(t("success"));
+    refresh();
+    reportSuccess(t("success"));
   }
   async function remove(id: string) {
-    const { error } = await supabase.from("blocked_slots").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["blocked-slots"] });
-    qc.invalidateQueries({ queryKey: ["slots"] });
+    try { await bookingService.removeBlock(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   return (
     <div className="space-y-4">
@@ -1150,65 +997,41 @@ function BlocksPanel() {
 }
 
 /* ---------------- GALLERY ---------------- */
-type GalleryRow = { id: string; media_type: "image" | "video"; storage_path: string | null; media_url: string; caption: string | null; sort_order: number; is_active: boolean };
+type GalleryRow = GalleryItem;
 function GalleryPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [caption, setCaption] = useState("");
-  const { data = [] } = useQuery({
-    queryKey: ["gallery-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("gallery_items").select("*").order("sort_order").order("created_at", { ascending: false });
-      if (error) throw error;
-      const rows = (data || []) as GalleryRow[];
-      await Promise.all(rows.map(async (r) => {
-        if (r.storage_path) {
-          const { data: signed } = await supabase.storage.from("gallery").createSignedUrl(r.storage_path, 60 * 60);
-          if (signed?.signedUrl) r.media_url = signed.signedUrl;
-        }
-      }));
-      return rows;
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["gallery-admin"] }); qc.invalidateQueries({ queryKey: ["gallery-public"] }); };
+  const { data = [] } = useAdminGallery();
+  const refresh = () => { qc.invalidateQueries({ queryKey: QK.galleryAdmin }); qc.invalidateQueries({ queryKey: QK.galleryPublic }); };
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; e.target.value = "";
     if (!file) return;
-    const isVideo = file.type.startsWith("video/");
-    const isImage = file.type.startsWith("image/");
-    if (!isVideo && !isImage) return toast.error(lang === "ar" ? "اختاري صورة أو فيديو" : "בחרי תמונה או סרטון");
-    if (file.size > 50 * 1024 * 1024) return toast.error(lang === "ar" ? "الحجم الأقصى 50MB" : "מקסימום 50MB");
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("gallery").upload(path, file, { contentType: file.type });
-      if (upErr) throw upErr;
-      const { error: insErr } = await supabase.from("gallery_items").insert({
-        media_type: isVideo ? "video" : "image", storage_path: path, media_url: path,
-        caption: caption.trim() || null, sort_order: data.length,
+      await galleryService.upload(file, caption, data.length, {
+        badType: lang === "ar" ? "اختاري صورة أو فيديو" : "בחרי תמונה או סרטון",
+        tooLarge: lang === "ar" ? "الحجم الأقصى 50MB" : "מקסימום 50MB",
       });
-      if (insErr) throw insErr;
-      setCaption(""); refresh(); toast.success(t("success"));
+      setCaption(""); refresh(); reportSuccess(t("success"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("error"));
+      reportError(err, t("error"));
     } finally {
       setUploading(false);
     }
   }
   async function toggleActive(r: GalleryRow) {
-    await supabase.from("gallery_items").update({ is_active: !r.is_active }).eq("id", r.id); refresh();
+    await galleryService.setActive(r.id, !r.is_active); refresh();
   }
   async function remove(r: GalleryRow) {
     if (!confirm(lang === "ar" ? "حذف العنصر؟" : "למחוק את הפריט?")) return;
-    if (r.storage_path) await supabase.storage.from("gallery").remove([r.storage_path]);
-    await supabase.from("gallery_items").delete().eq("id", r.id); refresh();
+    await galleryService.remove(r); refresh();
   }
   async function move(i: number, dir: -1 | 1) {
     const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("gallery_items", a, b); refresh();
+    await moveInList("gallery_items", data, i, dir); refresh();
   }
 
   return (

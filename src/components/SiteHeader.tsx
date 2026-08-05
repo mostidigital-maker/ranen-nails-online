@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useLang, type Lang } from "@/lib/i18n";
-import { useSiteSettings } from "@/lib/site";
+import { useSiteSettings } from "@/features/settings/hooks";
 import { Sparkles, Globe } from "lucide-react";
 
 export function SiteHeader() {

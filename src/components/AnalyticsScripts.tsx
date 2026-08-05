@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useSiteSettings } from "@/lib/site";
+import { useSiteSettings } from "@/features/settings/hooks";
 
 /**
  * Injects third-party analytics snippets when the matching ID is configured

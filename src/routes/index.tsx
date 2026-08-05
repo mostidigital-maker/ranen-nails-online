@@ -1,21 +1,34 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/lib/i18n";
-import { useSiteSettings, useServiceCategories } from "@/lib/site";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Reveal, CountUp, SectionHeader } from "@/components/SectionReveal";
 import {
   MapPin, Clock, Phone, Sparkles, Calendar, CheckCircle2, ChevronDown,
   Heart, ShieldCheck, Star, MessageCircle, Instagram, Navigation, ImageIcon, Award, Users,
 } from "lucide-react";
-import { toast } from "sonner";
-import { getAvailableSlots } from "@/lib/availability";
 import { motion, AnimatePresence } from "framer-motion";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
+
+import { QK } from "@/core/config/queryKeys";
+import { reportError, reportSuccess } from "@/core/errors/appError";
+import { useSiteSettings } from "@/features/settings/hooks";
+import { usePublicServices, useServiceCategories } from "@/features/services/hooks";
+import type { PublicService } from "@/features/services/types";
+import { usePublicGallery } from "@/features/gallery/hooks";
+import { usePublicStats } from "@/features/stats/stats.service";
+import { usePublicAboutCards } from "@/features/about/about.service";
+import { usePublicTestimonials } from "@/features/testimonials/testimonials.service";
+import { usePublicFaqs } from "@/features/faq/faq.service";
+import { bookingService } from "@/features/booking/booking.service";
+import { useAvailableSlots } from "@/features/booking/hooks";
+import { whatsappService, whatsappTemplates } from "@/features/notifications/whatsapp.service";
+import { pickLang } from "@/shared/utils/localized";
+import { combineDateTime, todayISODate } from "@/shared/utils/datetime";
+import { firstError, isFutureDate, requireFields } from "@/shared/validation/validators";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,17 +43,8 @@ export const Route = createFileRoute("/")({
 });
 
 
-type Service = {
-  id: string;
-  name_ar: string;
-  name_he: string;
-  description_ar: string | null;
-  description_he: string | null;
-  price: number;
-  duration_minutes: number;
-  image_url: string | null;
-  category_id: string | null;
-};
+type Service = PublicService;
+
 
 
 // Small map of allowed icon names → components (admin picks a name)
@@ -57,19 +61,8 @@ function Index() {
   const { data: settings } = useSiteSettings();
   const [preselectedService, setPreselectedService] = useState<string>("");
 
-  const { data: services = [] } = useQuery({
-    queryKey: ["services-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("services")
-        .select("id,name_ar,name_he,description_ar,description_he,price,duration_minutes,image_url,category_id")
-        .eq("is_active", true)
-        .order("sort_order");
-      if (error) throw error;
-      return data as unknown as Service[];
+  const { data: services = [] } = usePublicServices();
 
-    },
-  });
 
   function bookService(id: string) {
     setPreselectedService(id);
@@ -204,17 +197,10 @@ function HeroSection({ bizName, tagline, address }: { bizName: string; tagline: 
 }
 
 /* ---------------- STATS ---------------- */
-type Stat = { id: string; label_ar: string; label_he: string; value: number; suffix: string | null };
 function StatsSection() {
   const { lang } = useLang();
-  const { data = [] } = useQuery({
-    queryKey: ["stats-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("stats" as never).select("*").eq("is_active", true).order("sort_order");
-      if (error) throw error;
-      return data as unknown as Stat[];
-    },
-  });
+  const { data = [] } = usePublicStats();
+
   if (!data.length) return null;
   return (
     <section className="px-4 py-14">
@@ -238,18 +224,11 @@ function StatsSection() {
 }
 
 /* ---------------- ABOUT ---------------- */
-type AboutCard = { id: string; icon: string; title_ar: string; title_he: string; text_ar: string; text_he: string };
 function AboutSection() {
   const { t, lang } = useLang();
   const { data: settings } = useSiteSettings();
-  const { data = [] } = useQuery({
-    queryKey: ["about-cards-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("about_cards" as never).select("*").eq("is_active", true).order("sort_order");
-      if (error) throw error;
-      return data as unknown as AboutCard[];
-    },
-  });
+  const { data = [] } = usePublicAboutCards();
+
   const title = settings ? (lang === "ar" ? settings.about_title_ar : settings.about_title_he) : t("about");
   const text = settings ? (lang === "ar" ? settings.about_text_ar : settings.about_text_he) : t("aboutText");
   return (
@@ -397,33 +376,14 @@ function ServicesSection({ services, onBook }: { services: Service[]; onBook: (i
 
 
 /* ---------------- GALLERY ---------------- */
-type GalleryItem = { id: string; media_type: "image" | "video"; storage_path: string | null; media_url: string; caption: string | null };
 function GallerySection() {
   const { t } = useLang();
 
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
 
-  const { data = [] } = useQuery({
-    queryKey: ["gallery-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("gallery_items")
-        .select("id,media_type,storage_path,media_url,caption")
-        .eq("is_active", true)
-        .order("sort_order")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      const items = (data || []) as GalleryItem[];
-      await Promise.all(items.map(async (it) => {
-        if (it.storage_path) {
-          const { data: signed } = await supabase.storage.from("gallery").createSignedUrl(it.storage_path, 60 * 60 * 24 * 7);
-          if (signed?.signedUrl) it.media_url = signed.signedUrl;
-        }
-      }));
-      return items;
-    },
-  });
+  const { data = [] } = usePublicGallery();
+
 
   if (!data.length) return null;
 
@@ -481,17 +441,10 @@ function GallerySection() {
 }
 
 /* ---------------- TESTIMONIALS ---------------- */
-type Testimonial = { id: string; name: string; text_ar: string; text_he: string; rating: number };
 function TestimonialsSection() {
   const { t, lang } = useLang();
-  const { data = [] } = useQuery({
-    queryKey: ["testimonials-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("testimonials" as never).select("*").eq("is_active", true).order("sort_order");
-      if (error) throw error;
-      return data as unknown as Testimonial[];
-    },
-  });
+  const { data = [] } = usePublicTestimonials();
+
   if (!data.length) return null;
   return (
     <section id="testimonials" className="px-4 py-16">
@@ -529,18 +482,11 @@ function TestimonialsSection() {
 }
 
 /* ---------------- FAQ ---------------- */
-type Faq = { id: string; question_ar: string; question_he: string; answer_ar: string; answer_he: string };
 function FaqSection() {
   const { t, lang } = useLang();
   const [openId, setOpenId] = useState<string | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["faqs-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("faqs" as never).select("*").eq("is_active", true).order("sort_order");
-      if (error) throw error;
-      return data as unknown as Faq[];
-    },
-  });
+  const { data = [] } = usePublicFaqs();
+
   if (!data.length) return null;
   return (
     <section id="faq" className="px-4 py-16">
@@ -607,45 +553,56 @@ function BookingForm({ services, preselectedId, onConsumePreselect }: { services
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.phone || !form.serviceId || !form.date || !form.time) {
-      toast.error(t("required")); return;
-    }
     const service = services.find((s) => s.id === form.serviceId);
+
+    const appointmentAt = combineDateTime(form.date, form.time);
+    const check = firstError(
+      requireFields([form.name, form.phone, form.serviceId, form.date, form.time], t("required")),
+      service ? { ok: true as const } : { ok: false as const, message: t("required") },
+      isFutureDate(appointmentAt, lang === "ar" ? "اختاري وقتاً في المستقبل" : "בחרי זמן עתידי"),
+    );
+    if (!check.ok) { reportError(check.message); return; }
     if (!service) return;
 
-    const appointmentAt = new Date(`${form.date}T${form.time}:00`);
-    if (appointmentAt.getTime() <= Date.now()) {
-      toast.error(lang === "ar" ? "اختاري وقتاً في المستقبل" : "בחרי זמן עתידי");
+    setSubmitting(true);
+    try {
+      await bookingService.createAppointment({
+        client_name: form.name.trim(),
+        client_phone: form.phone.trim(),
+        service_id: service.id,
+        service_name: pickLang(service.name_ar, service.name_he, lang),
+        service_price: service.price,
+        appointment_at: appointmentAt.toISOString(),
+        notes: form.notes.trim() || null,
+      });
+    } catch (err) {
+      setSubmitting(false);
+      reportError(err, t("error"));
       return;
     }
-
-    setSubmitting(true);
-    const serviceName = lang === "ar" ? service.name_ar : service.name_he;
-    const { error } = await supabase.from("appointments").insert({
-      client_name: form.name.trim(),
-      client_phone: form.phone.trim(),
-      service_id: service.id,
-      service_name: serviceName,
-      service_price: service.price,
-      appointment_at: appointmentAt.toISOString(),
-      notes: form.notes.trim() || null,
-    });
     setSubmitting(false);
-    if (error) { toast.error(t("error") + ": " + error.message); return; }
 
-    const cur = settings?.currency || "";
-    const msg = lang === "ar"
-      ? `حجز جديد 💅\nالاسم: ${form.name}\nالهاتف: ${form.phone}\nالخدمة: ${service.name_ar}\nالسعر: ${service.price}${cur}\nالتاريخ: ${form.date}\nالوقت: ${form.time}${form.notes ? `\nملاحظات: ${form.notes}` : ""}`
-      : `תור חדש 💅\nשם: ${form.name}\nטלפון: ${form.phone}\nשירות: ${service.name_he}\nמחיר: ${service.price}${cur}\nתאריך: ${form.date}\nשעה: ${form.time}${form.notes ? `\nהערות: ${form.notes}` : ""}`;
-    const wa = (settings?.whatsapp || "").replace(/\D/g, "");
-    if (wa) window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`, "_blank");
-    toast.success(t("bookingSent"));
+    const msg = whatsappTemplates.newBooking({
+      lang,
+      clientName: form.name,
+      clientPhone: form.phone,
+      serviceNameAr: service.name_ar,
+      serviceNameHe: service.name_he,
+      price: service.price,
+      currency: settings?.currency || "",
+      date: form.date,
+      time: form.time,
+      notes: form.notes,
+    });
+    whatsappService.open(whatsappService.businessLink(settings?.whatsapp || "", msg));
+    reportSuccess(t("bookingSent"));
     setSuccess(true);
-    qc.invalidateQueries({ queryKey: ["slots"] });
+    qc.invalidateQueries({ queryKey: QK.slots() });
     setForm({ name: "", phone: "", serviceId: "", date: "", time: "", notes: "" });
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISODate();
+
 
   return (
     <section id="booking" className="px-4 py-16">
@@ -726,11 +683,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function SlotPicker({ date, duration, value, onChange }: { date: string; duration: number; value: string; onChange: (v: string) => void }) {
   const { t } = useLang();
   const enabled = !!date && !!duration;
-  const { data, isLoading } = useQuery({
-    queryKey: ["slots", date, duration],
-    queryFn: () => getAvailableSlots(date, duration),
-    enabled, staleTime: 30_000,
-  });
+  const { data, isLoading } = useAvailableSlots(date, duration);
+
 
   if (!enabled) return <div className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("pickDateService")}</div>;
   if (isLoading) return <div className="rounded-xl border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("loadingSlots")}</div>;
