@@ -442,17 +442,10 @@ function GallerySection() {
 }
 
 /* ---------------- TESTIMONIALS ---------------- */
-type Testimonial = { id: string; name: string; text_ar: string; text_he: string; rating: number };
 function TestimonialsSection() {
   const { t, lang } = useLang();
-  const { data = [] } = useQuery({
-    queryKey: ["testimonials-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("testimonials" as never).select("*").eq("is_active", true).order("sort_order");
-      if (error) throw error;
-      return data as unknown as Testimonial[];
-    },
-  });
+  const { data = [] } = usePublicTestimonials();
+
   if (!data.length) return null;
   return (
     <section id="testimonials" className="px-4 py-16">
