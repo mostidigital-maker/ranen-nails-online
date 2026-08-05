@@ -673,7 +673,6 @@ function AboutPanel() {
   const [editing, setEditing] = useState<Partial<AboutRow> | null>(null);
   const { data = [] } = useQuery({ queryKey: QK.aboutAdmin, queryFn: () => aboutService.listAll() });
   const refresh = () => { qc.invalidateQueries({ queryKey: QK.aboutAdmin }); qc.invalidateQueries({ queryKey: QK.aboutPublic }); };
-  const { data = [] } = useQuery({ queryKey: QK.aboutAdmin, queryFn: () => aboutService.listAll() });
   
   async function save() {
     if (!editing) return;
