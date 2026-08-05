@@ -377,33 +377,14 @@ function ServicesSection({ services, onBook }: { services: Service[]; onBook: (i
 
 
 /* ---------------- GALLERY ---------------- */
-type GalleryItem = { id: string; media_type: "image" | "video"; storage_path: string | null; media_url: string; caption: string | null };
 function GallerySection() {
   const { t } = useLang();
 
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
 
-  const { data = [] } = useQuery({
-    queryKey: ["gallery-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("gallery_items")
-        .select("id,media_type,storage_path,media_url,caption")
-        .eq("is_active", true)
-        .order("sort_order")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      const items = (data || []) as GalleryItem[];
-      await Promise.all(items.map(async (it) => {
-        if (it.storage_path) {
-          const { data: signed } = await supabase.storage.from("gallery").createSignedUrl(it.storage_path, 60 * 60 * 24 * 7);
-          if (signed?.signedUrl) it.media_url = signed.signedUrl;
-        }
-      }));
-      return items;
-    },
-  });
+  const { data = [] } = usePublicGallery();
+
 
   if (!data.length) return null;
 
