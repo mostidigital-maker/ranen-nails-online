@@ -607,7 +607,7 @@ function StatsPanel() {
       sort_order: Number(editing.sort_order) || 0,
       is_active: editing.is_active ?? true,
     };
-    if (!payload.label_ar || !payload.label_he) return toast.error(t("required"));
+    if (!payload.label_ar || !payload.label_he) return reportError(t("required"));
     try {
       if (editing.id) await statsService.update(editing.id, payload);
       else await statsService.create(payload);
@@ -683,7 +683,7 @@ function AboutPanel() {
       text_ar: editing.text_ar?.trim() || "", text_he: editing.text_he?.trim() || "",
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
-    if (!payload.title_ar || !payload.title_he) return toast.error(t("required"));
+    if (!payload.title_ar || !payload.title_he) return reportError(t("required"));
     try {
       if (editing.id) await aboutService.update(editing.id, payload);
       else await aboutService.create(payload);
@@ -761,7 +761,7 @@ function TestimonialsPanel() {
       rating: clampRating(editing.rating),
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
-    if (!payload.name || !payload.text_ar || !payload.text_he) return toast.error(t("required"));
+    if (!payload.name || !payload.text_ar || !payload.text_he) return reportError(t("required"));
     try {
       if (editing.id) await testimonialsService.update(editing.id, payload);
       else await testimonialsService.create(payload);
@@ -834,7 +834,7 @@ function FaqPanel() {
       answer_ar: editing.answer_ar?.trim() || "", answer_he: editing.answer_he?.trim() || "",
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
-    if (!payload.question_ar || !payload.question_he) return toast.error(t("required"));
+    if (!payload.question_ar || !payload.question_he) return reportError(t("required"));
     try {
       if (editing.id) await faqService.update(editing.id, payload);
       else await faqService.create(payload);
