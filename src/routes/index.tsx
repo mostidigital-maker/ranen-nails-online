@@ -483,18 +483,11 @@ function TestimonialsSection() {
 }
 
 /* ---------------- FAQ ---------------- */
-type Faq = { id: string; question_ar: string; question_he: string; answer_ar: string; answer_he: string };
 function FaqSection() {
   const { t, lang } = useLang();
   const [openId, setOpenId] = useState<string | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["faqs-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("faqs" as never).select("*").eq("is_active", true).order("sort_order");
-      if (error) throw error;
-      return data as unknown as Faq[];
-    },
-  });
+  const { data = [] } = usePublicFaqs();
+
   if (!data.length) return null;
   return (
     <section id="faq" className="px-4 py-16">
