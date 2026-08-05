@@ -532,14 +532,7 @@ function CategoriesPanel() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<CategoryRow> | null>(null);
 
-  const { data = [] } = useQuery({
-    queryKey: ["categories-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("service_categories" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return (data || []) as unknown as CategoryRow[];
-    },
-  });
+  const { data = [] } = useAdminCategories();
 
   function refresh() {
     qc.invalidateQueries({ queryKey: ["categories-admin"] });
@@ -554,24 +547,23 @@ function CategoriesPanel() {
       sort_order: Number(editing.sort_order) || 0,
       is_active: editing.is_active ?? true,
     };
-    if (!payload.name_ar || !payload.name_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("service_categories" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("service_categories" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    if (!payload.name_ar || !payload.name_he) return reportError(t("required"));
+    try {
+      if (editing.id) await categoriesService.update(editing.id, payload);
+      else await categoriesService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
 
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف الفئة؟" : "למחוק את הקטגוריה?")) return;
-    const { error } = await supabase.from("service_categories" as never).delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    try { await categoriesService.remove(id); } catch (err) { reportError(err, t("error")); return; }
     refresh();
   }
 
   async function move(i: number, dir: -1 | 1) {
     const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("service_categories", a, b); refresh();
+    await categoriesService.move(data, i, dir); refresh();
   }
 
   return (
@@ -622,15 +614,7 @@ function StatsPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<StatRow> | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["stats-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("stats" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return data as unknown as StatRow[];
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["stats-admin"] }); qc.invalidateQueries({ queryKey: ["stats-public"] }); };
+  
 
   async function save() {
     if (!editing) return;
@@ -643,23 +627,22 @@ function StatsPanel() {
       is_active: editing.is_active ?? true,
     };
     if (!payload.label_ar || !payload.label_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("stats" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("stats" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    try {
+      if (editing.id) await statsService.update(editing.id, payload);
+      else await statsService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف؟" : "למחוק?")) return;
-    const { error } = await supabase.from("stats" as never).delete().eq("id", id);
-    if (error) return toast.error(error.message); refresh();
+    try { await statsService.remove(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("stats", a, b); refresh();
+    await statsService.move(data, i, dir); refresh();
   }
   async function toggleActive(r: StatRow) {
-    await supabase.from("stats" as never).update({ is_active: !r.is_active } as never).eq("id", r.id); refresh();
+    await statsService.setActive(r.id, !r.is_active); refresh();
   }
 
   return (
@@ -707,15 +690,8 @@ function AboutPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<AboutRow> | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["about-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("about_cards" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return data as unknown as AboutRow[];
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["about-admin"] }); qc.invalidateQueries({ queryKey: ["about-cards-public"] }); };
+  const { data = [] } = useQuery({ queryKey: QK.aboutAdmin, queryFn: () => aboutService.listAll() });
+  
   async function save() {
     if (!editing) return;
     const payload = {
@@ -725,22 +701,22 @@ function AboutPanel() {
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
     if (!payload.title_ar || !payload.title_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("about_cards" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("about_cards" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    try {
+      if (editing.id) await aboutService.update(editing.id, payload);
+      else await aboutService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف؟" : "למחוק?")) return;
-    await supabase.from("about_cards" as never).delete().eq("id", id); refresh();
+    try { await aboutService.remove(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("about_cards", a, b); refresh();
+    await aboutService.move(data, i, dir); refresh();
   }
   async function toggleActive(r: AboutRow) {
-    await supabase.from("about_cards" as never).update({ is_active: !r.is_active } as never).eq("id", r.id); refresh();
+    await aboutService.setActive(r.id, !r.is_active); refresh();
   }
   return (
     <div className="space-y-3">
@@ -791,15 +767,7 @@ function TestimonialsPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<TestimonialRow> | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["testimonials-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("testimonials" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return data as unknown as TestimonialRow[];
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["testimonials-admin"] }); qc.invalidateQueries({ queryKey: ["testimonials-public"] }); };
+  
   async function save() {
     if (!editing) return;
     const payload = {
@@ -809,22 +777,22 @@ function TestimonialsPanel() {
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
     if (!payload.name || !payload.text_ar || !payload.text_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("testimonials" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("testimonials" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    try {
+      if (editing.id) await testimonialsService.update(editing.id, payload);
+      else await testimonialsService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف؟" : "למחוק?")) return;
-    await supabase.from("testimonials" as never).delete().eq("id", id); refresh();
+    try { await testimonialsService.remove(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("testimonials", a, b); refresh();
+    await testimonialsService.move(data, i, dir); refresh();
   }
   async function toggleActive(r: TestimonialRow) {
-    await supabase.from("testimonials" as never).update({ is_active: !r.is_active } as never).eq("id", r.id); refresh();
+    await testimonialsService.setActive(r.id, !r.is_active); refresh();
   }
   return (
     <div className="space-y-3">
@@ -871,15 +839,7 @@ function FaqPanel() {
   const { t, lang } = useLang();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Partial<FaqRow> | null>(null);
-  const { data = [] } = useQuery({
-    queryKey: ["faqs-admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("faqs" as never).select("*").order("sort_order");
-      if (error) throw error;
-      return data as unknown as FaqRow[];
-    },
-  });
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["faqs-admin"] }); qc.invalidateQueries({ queryKey: ["faqs-public"] }); };
+  
   async function save() {
     if (!editing) return;
     const payload = {
@@ -888,22 +848,22 @@ function FaqPanel() {
       sort_order: Number(editing.sort_order) || 0, is_active: editing.is_active ?? true,
     };
     if (!payload.question_ar || !payload.question_he) return toast.error(t("required"));
-    const { error } = editing.id
-      ? await supabase.from("faqs" as never).update(payload as never).eq("id", editing.id)
-      : await supabase.from("faqs" as never).insert(payload as never);
-    if (error) return toast.error(error.message);
-    refresh(); setEditing(null); toast.success(t("success"));
+    try {
+      if (editing.id) await faqService.update(editing.id, payload);
+      else await faqService.create(payload);
+    } catch (err) { reportError(err, t("error")); return; }
+    refresh(); setEditing(null); reportSuccess(t("success"));
   }
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف؟" : "למחוק?")) return;
-    await supabase.from("faqs" as never).delete().eq("id", id); refresh();
+    try { await faqService.remove(id); } catch (err) { reportError(err, t("error")); return; }
+    refresh();
   }
   async function move(i: number, dir: -1 | 1) {
-    const b = data[i + dir]; const a = data[i]; if (!a || !b) return;
-    await swapOrder("faqs", a, b); refresh();
+    await faqService.move(data, i, dir); refresh();
   }
   async function toggleActive(r: FaqRow) {
-    await supabase.from("faqs" as never).update({ is_active: !r.is_active } as never).eq("id", r.id); refresh();
+    await faqService.setActive(r.id, !r.is_active); refresh();
   }
   return (
     <div className="space-y-3">
