@@ -1,21 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/lib/i18n";
-import { useSiteSettings, useServiceCategories } from "@/lib/site";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Reveal, CountUp, SectionHeader } from "@/components/SectionReveal";
 import {
   MapPin, Clock, Phone, Sparkles, Calendar, CheckCircle2, ChevronDown,
   Heart, ShieldCheck, Star, MessageCircle, Instagram, Navigation, ImageIcon, Award, Users,
 } from "lucide-react";
-import { toast } from "sonner";
-import { getAvailableSlots } from "@/lib/availability";
 import { motion, AnimatePresence } from "framer-motion";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
+
+import { QK } from "@/core/config/queryKeys";
+import { APP_CONFIG } from "@/core/config/app.config";
+import { reportError, reportSuccess } from "@/core/errors/appError";
+import { useSiteSettings } from "@/features/settings/hooks";
+import { usePublicServices, useServiceCategories } from "@/features/services/hooks";
+import type { PublicService } from "@/features/services/types";
+import { usePublicGallery } from "@/features/gallery/hooks";
+import { usePublicStats } from "@/features/stats/stats.service";
+import { usePublicAboutCards } from "@/features/about/about.service";
+import { usePublicTestimonials } from "@/features/testimonials/testimonials.service";
+import { usePublicFaqs } from "@/features/faq/faq.service";
+import { bookingService } from "@/features/booking/booking.service";
+import { useAvailableSlots } from "@/features/booking/hooks";
+import { whatsappService, whatsappTemplates } from "@/features/notifications/whatsapp.service";
+import { pickLang } from "@/shared/utils/localized";
+import { combineDateTime, todayISODate } from "@/shared/utils/datetime";
+import { firstError, isFutureDate, requireFields } from "@/shared/validation/validators";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,17 +44,8 @@ export const Route = createFileRoute("/")({
 });
 
 
-type Service = {
-  id: string;
-  name_ar: string;
-  name_he: string;
-  description_ar: string | null;
-  description_he: string | null;
-  price: number;
-  duration_minutes: number;
-  image_url: string | null;
-  category_id: string | null;
-};
+type Service = PublicService;
+
 
 
 // Small map of allowed icon names → components (admin picks a name)
