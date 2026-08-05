@@ -1,11 +1,33 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useLang } from "@/lib/i18n";
-import { useSiteSettings, PAYMENT_PROVIDERS } from "@/lib/site";
 import { SiteHeader } from "@/components/SiteHeader";
-import { toast } from "sonner";
+import { QK } from "@/core/config/queryKeys";
+import { auth } from "@/core/supabase/db";
+import { reportError, reportSuccess } from "@/core/errors/appError";
+import { usePermissions } from "@/core/permissions/usePermissions";
+import { PAYMENT_PROVIDERS } from "@/features/payments/payments.config";
+import { useSiteSettings, useSiteSettingsAdmin } from "@/features/settings/hooks";
+import { siteSettingsService } from "@/features/settings/siteSettings.service";
+import type { SiteSettings } from "@/features/settings/types";
+import { useAdminCategories, useAdminServices } from "@/features/services/hooks";
+import { servicesService } from "@/features/services/services.service";
+import { categoriesService } from "@/features/services/categories.service";
+import type { Service as ServiceRow, ServiceCategory } from "@/features/services/types";
+import { useAppointments, useBlockedSlots, useBusinessHours } from "@/features/booking/hooks";
+import { bookingService } from "@/features/booking/booking.service";
+import type { Appointment as AppointmentRow, BlockedSlot, BusinessHours } from "@/features/booking/types";
+import { useAdminGallery } from "@/features/gallery/hooks";
+import { galleryService } from "@/features/gallery/gallery.service";
+import type { GalleryItem } from "@/features/gallery/types";
+import { statsService, type Stat } from "@/features/stats/stats.service";
+import { aboutService, type AboutCard } from "@/features/about/about.service";
+import { testimonialsService, type Testimonial } from "@/features/testimonials/testimonials.service";
+import { faqService, type Faq } from "@/features/faq/faq.service";
+import { whatsappService, whatsappTemplates } from "@/features/notifications/whatsapp.service";
+import { pickLang } from "@/shared/utils/localized";
+import { clampRating } from "@/shared/validation/validators";
 import {
   CheckCircle2, XCircle, Trash2, Plus, MessageCircle, Calendar, Settings, LogOut,
   Pencil, Clock, Ban, Image as ImageIcon, Upload, Star, HelpCircle, LayoutGrid,
@@ -21,22 +43,9 @@ type TabKey =
   | "appointments" | "services" | "gallery" | "hours" | "blocks"
   | "settings" | "categories" | "stats" | "about" | "testimonials" | "faq";
 
-type Appointment = {
-  id: string; client_name: string; client_phone: string; service_name: string;
-  service_price: number; appointment_at: string;
-  status: "pending" | "confirmed" | "cancelled"; notes: string | null;
-};
-
-type Service = {
-  id: string; name_ar: string; name_he: string;
-  description_ar: string | null; description_he: string | null;
-  price: number; duration_minutes: number; is_active: boolean; sort_order: number;
-  image_url: string | null; category_id: string | null;
-};
-
-type CategoryRow = {
-  id: string; name_ar: string; name_he: string; sort_order: number; is_active: boolean;
-};
+type Appointment = AppointmentRow;
+type Service = ServiceRow;
+type CategoryRow = ServiceCategory;
 
 const TABS: { key: TabKey; labelAr: string; labelHe: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "appointments", labelAr: "المواعيد", labelHe: "תורים", icon: Calendar },
@@ -56,28 +65,17 @@ function AdminPage() {
   const { t, lang } = useLang();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>("appointments");
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const qc = useQueryClient();
-
-  useEffect(() => {
-    (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
-      const { data } = await supabase
-        .from("user_roles").select("role")
-        .eq("user_id", u.user.id).eq("role", "admin").maybeSingle();
-      setIsAdmin(!!data);
-    })();
-  }, []);
+  const { isAdmin, isLoading: rolesLoading } = usePermissions();
 
   async function signOut() {
     await qc.cancelQueries();
     qc.clear();
-    await supabase.auth.signOut();
+    await auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
 
-  if (isAdmin === false) {
+  if (!rolesLoading && !isAdmin) {
     return (
       <div className="min-h-dvh">
         <SiteHeader />
@@ -148,51 +146,44 @@ function AppointmentsPanel() {
   const qc = useQueryClient();
   const { data: settings } = useSiteSettings();
 
-  const { data = [], isLoading } = useQuery({
-    queryKey: ["appointments"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("appointments").select("*").order("appointment_at", { ascending: true });
-      if (error) throw error;
-      return data as Appointment[];
-    },
-  });
+  const { data = [], isLoading } = useAppointments();
 
-  useEffect(() => {
-    const channel = supabase
-      .channel("appointments-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => {
-        qc.invalidateQueries({ queryKey: ["appointments"] });
-        qc.invalidateQueries({ queryKey: ["slots"] });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [qc]);
+  useEffect(() => bookingService.subscribeAppointments(() => {
+    qc.invalidateQueries({ queryKey: QK.appointments });
+    qc.invalidateQueries({ queryKey: QK.slots() });
+  }), [qc]);
 
   async function updateStatus(a: Appointment, status: "confirmed" | "cancelled") {
-    const { error } = await supabase.from("appointments").update({ status }).eq("id", a.id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["appointments"] });
-    const bizName = lang === "ar" ? (settings?.business_name_ar || "") : (settings?.business_name_he || "");
-    const dt = new Date(a.appointment_at);
-    const dateStr = dt.toLocaleDateString(lang === "ar" ? "ar" : "he");
-    const timeStr = dt.toLocaleTimeString(lang === "ar" ? "ar" : "he", { hour: "2-digit", minute: "2-digit" });
-    const msg = status === "confirmed"
-      ? (lang === "ar"
-          ? `مرحباً ${a.client_name} 💕\nتم تأكيد موعدك في ${bizName}:\nالخدمة: ${a.service_name}\nالتاريخ: ${dateStr}\nالوقت: ${timeStr}\nبانتظارك!`
-          : `שלום ${a.client_name} 💕\nהתור שלך ב${bizName} אושר:\nשירות: ${a.service_name}\nתאריך: ${dateStr}\nשעה: ${timeStr}\nמחכה לך!`)
-      : (lang === "ar"
-          ? `مرحباً ${a.client_name}\nنعتذر، تم إلغاء موعدك:\nالخدمة: ${a.service_name}\nالتاريخ: ${dateStr} ${timeStr}\nتواصلي معنا لتحديد موعد جديد.`
-          : `שלום ${a.client_name}\nלצערנו התור שלך בוטל:\nשירות: ${a.service_name}\nתאריך: ${dateStr} ${timeStr}\nצרי קשר לקביעת תור חדש.`);
-    const phone = a.client_phone.replace(/\D/g, "").replace(/^0/, "972");
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
-    toast.success(t("success"));
+    try {
+      await bookingService.updateStatus(a.id, status);
+    } catch (err) {
+      reportError(err, t("error"));
+      return;
+    }
+    qc.invalidateQueries({ queryKey: QK.appointments });
+    qc.invalidateQueries({ queryKey: QK.slots() });
+    const input = {
+      lang,
+      businessName: settings ? pickLang(settings.business_name_ar, settings.business_name_he, lang) : "",
+      clientName: a.client_name,
+      serviceName: a.service_name,
+      appointmentAt: a.appointment_at,
+    };
+    const msg = status === "confirmed" ? whatsappTemplates.confirmed(input) : whatsappTemplates.cancelled(input);
+    whatsappService.open(whatsappService.clientLink(a.client_phone, msg));
+    reportSuccess(t("success"));
   }
 
   async function remove(id: string) {
     if (!confirm(lang === "ar" ? "حذف الموعد؟" : "למחוק את התור?")) return;
-    const { error } = await supabase.from("appointments").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    qc.invalidateQueries({ queryKey: ["appointments"] });
+    try {
+      await bookingService.removeAppointment(id);
+    } catch (err) {
+      reportError(err, t("error"));
+      return;
+    }
+    qc.invalidateQueries({ queryKey: QK.appointments });
+    qc.invalidateQueries({ queryKey: QK.slots() });
   }
 
   if (isLoading) return <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground" role="status" aria-live="polite">{t("loadingSlots")}</div>;
@@ -234,7 +225,7 @@ function AppointmentsPanel() {
                     <XCircle className="h-4 w-4" />{t("cancel")}
                   </button>
                 )}
-                <a href={`https://wa.me/${a.client_phone.replace(/\D/g, "").replace(/^0/, "972")}`} target="_blank" rel="noreferrer"
+                <a href={whatsappService.clientLink(a.client_phone)} target="_blank" rel="noreferrer"
                    className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm hover:border-primary">
                   <MessageCircle className="h-4 w-4" />WhatsApp
                 </a>
@@ -266,11 +257,6 @@ function TextArea({ label, value, onChange, rows = 3 }: { label: string; value: 
       <textarea rows={rows} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none focus:border-primary" />
     </label>
   );
-}
-
-async function swapOrder(table: string, a: { id: string; sort_order: number }, b: { id: string; sort_order: number }) {
-  await supabase.from(table as never).update({ sort_order: b.sort_order } as never).eq("id", a.id);
-  await supabase.from(table as never).update({ sort_order: a.sort_order } as never).eq("id", b.id);
 }
 
 function ReorderButtons({ onUp, onDown, disabledUp, disabledDown }: { onUp: () => void; onDown: () => void; disabledUp?: boolean; disabledDown?: boolean }) {
