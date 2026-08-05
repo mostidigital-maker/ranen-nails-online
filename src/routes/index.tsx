@@ -225,18 +225,11 @@ function StatsSection() {
 }
 
 /* ---------------- ABOUT ---------------- */
-type AboutCard = { id: string; icon: string; title_ar: string; title_he: string; text_ar: string; text_he: string };
 function AboutSection() {
   const { t, lang } = useLang();
   const { data: settings } = useSiteSettings();
-  const { data = [] } = useQuery({
-    queryKey: ["about-cards-public"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("about_cards" as never).select("*").eq("is_active", true).order("sort_order");
-      if (error) throw error;
-      return data as unknown as AboutCard[];
-    },
-  });
+  const { data = [] } = usePublicAboutCards();
+
   const title = settings ? (lang === "ar" ? settings.about_title_ar : settings.about_title_he) : t("about");
   const text = settings ? (lang === "ar" ? settings.about_text_ar : settings.about_text_he) : t("aboutText");
   return (
