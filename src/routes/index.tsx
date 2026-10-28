@@ -92,107 +92,175 @@ function Index() {
         <ContactSection />
       </main>
       <SiteFooter />
+      {settings?.booking_enabled !== false && <FloatingBookButton />}
     </div>
   );
 }
 
 
-/* ---------------- HERO ---------------- */
+/* ---------------- HERO (profile-style) ---------------- */
 function HeroSection({ bizName, tagline, address }: { bizName: string; tagline: string; address: string }) {
   const { t, lang } = useLang();
   const { data: settings } = useSiteSettings();
   const title = settings ? (lang === "ar" ? settings.hero_title_ar : settings.hero_title_he) : bizName;
   const subtitle = settings ? (lang === "ar" ? settings.hero_subtitle_ar : settings.hero_subtitle_he) : tagline;
   const heroImage = settings?.hero_image_url;
+  const logo = settings?.logo_url;
+  const bookingOn = settings?.booking_enabled !== false;
+
+  const phoneDigits = (settings?.phone || "").replace(/\D/g, "");
+  const ig = settings?.instagram || "";
+  const igHref = ig ? (ig.startsWith("http") ? ig : `https://instagram.com/${ig.replace(/^@/, "")}`) : "";
+  const mapsHref = settings?.maps_url || (address ? `https://maps.google.com/?q=${encodeURIComponent(address)}` : "");
+
+  const actions = [
+    { icon: Phone, label: t("callNow"), href: phoneDigits ? `tel:${phoneDigits}` : "" },
+    { icon: MessageCircle, label: t("whatsapp"), href: settings?.whatsapp ? `https://wa.me/${settings.whatsapp}` : "" },
+    { icon: Instagram, label: t("instagram"), href: igHref },
+    { icon: Navigation, label: t("navigate"), href: mapsHref },
+  ].filter((a) => a.href);
 
   return (
-    <section className="relative overflow-hidden px-4 pt-12 pb-20 md:pt-20 md:pb-28">
-      <div className="absolute inset-0 -z-10 opacity-40" style={{ background: "var(--gradient-primary)", filter: "blur(120px)" }} />
-      <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
-        {/* Text */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="text-center md:text-start"
-        >
-          <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl shadow-lg md:h-20 md:w-20"
-               style={{ background: "var(--gradient-primary)", boxShadow: "var(--shadow-glow)" }}>
-            <Sparkles className="h-8 w-8 text-white md:h-10 md:w-10" />
-          </div>
-          <div className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-primary/80">{bizName}</div>
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">
-            {title}
-          </h1>
-          <p className="mt-4 text-lg text-muted-foreground max-w-xl md:mx-0 mx-auto">{subtitle}</p>
+    <section className="pb-6 md:px-4 md:pt-6">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="mx-auto max-w-3xl overflow-hidden bg-card md:rounded-[2rem] md:border md:border-border"
+        style={{ boxShadow: "var(--shadow-card)" }}
+      >
+        {/* Cover */}
+        <div className="relative h-56 w-full overflow-hidden bg-muted md:h-80">
+          {heroImage ? (
+            <img src={heroImage} alt={bizName} fetchPriority="high" decoding="async" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center" style={{ background: "var(--gradient-primary)" }}>
+              <Sparkles className="h-16 w-16 text-white/70" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
+        </div>
 
-          <div className="mt-6 flex items-center justify-center md:justify-start gap-2 text-sm text-muted-foreground">
-            <MapPin className="h-4 w-4 text-primary" />
-            <span>{address}</span>
+        <div className="relative px-5 pb-7 md:px-9">
+          {/* Logo + rating */}
+          <div className="-mt-12 mb-4 flex items-end justify-between md:-mt-14">
+            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-card bg-card shadow-lg md:h-28 md:w-28">
+              {logo ? (
+                <img src={logo} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center" style={{ background: "var(--gradient-primary)" }}>
+                  <Sparkles className="h-9 w-9 text-white" />
+                </div>
+              )}
+            </div>
+            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-bold">
+              <Star className="h-4 w-4 fill-gold text-gold" />
+              5.0
+              <span className="text-xs font-medium text-muted-foreground">{lang === "ar" ? "تقييم العميلات" : "דירוג לקוחות"}</span>
+            </div>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center md:justify-start gap-3">
+          {/* Title */}
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{bizName}</div>
+          <h1 className="mt-1 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl">{title}</h1>
+          {subtitle && <p className="mt-2 max-w-xl text-base leading-relaxed text-muted-foreground">{subtitle}</p>}
+          {address && (
+            <div className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4 text-primary" />
+              <span>{address}</span>
+            </div>
+          )}
+
+          {/* Quick actions */}
+          {actions.length > 0 && (
+            <div className="mt-6 grid gap-2.5" style={{ gridTemplateColumns: `repeat(${actions.length}, minmax(0, 1fr))` }}>
+              {actions.map((a) => {
+                const Cmp = a.icon;
+                return (
+                  <a
+                    key={a.label}
+                    href={a.href}
+                    target={a.href.startsWith("http") ? "_blank" : undefined}
+                    rel="noreferrer"
+                    className="flex flex-col items-center gap-1.5 rounded-2xl bg-secondary py-3.5 text-xs font-semibold transition hover:bg-primary/10 hover:text-primary active:scale-95"
+                  >
+                    <Cmp className="h-5 w-5" />
+                    {a.label}
+                  </a>
+                );
+              })}
+            </div>
+          )}
+
+          {/* CTAs */}
+          <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
+            {bookingOn && (
+              <motion.a
+                whileTap={{ scale: 0.98 }}
+                href="#booking"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-foreground px-7 py-4 font-bold text-background shadow-lg"
+              >
+                <Calendar className="h-5 w-5" />
+                {t("bookNow")}
+              </motion.a>
+            )}
             <motion.a
-              whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.98 }}
-              href="#booking"
-              className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 font-bold text-primary-foreground shadow-lg"
-              style={{ background: "var(--gradient-primary)", boxShadow: "var(--shadow-soft)" }}
-            >
-              <Calendar className="h-5 w-5" />
-              {t("bookNow")}
-            </motion.a>
-            <motion.a
-              whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.98 }}
+              whileTap={{ scale: 0.98 }}
               href="#gallery"
-              className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-6 py-3.5 font-bold backdrop-blur transition hover:border-primary hover:text-primary"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-border bg-card px-6 py-4 font-bold transition hover:border-primary hover:text-primary"
             >
               <ImageIcon className="h-5 w-5" />
               {t("viewGallery")}
             </motion.a>
           </div>
-        </motion.div>
-
-        {/* Image slot */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.94 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-          className="relative"
-        >
-          <div className="relative mx-auto aspect-[4/5] w-full max-w-md overflow-hidden rounded-[2rem] border border-border shadow-2xl">
-            {heroImage ? (
-              <img src={heroImage} alt={bizName} fetchPriority="high" decoding="async" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center"
-                   style={{ background: "var(--gradient-primary)" }}>
-                <Sparkles className="h-20 w-20 text-white/70" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-          </div>
-          {/* floating badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
-            className="absolute -bottom-4 -start-4 rounded-2xl border border-border bg-card px-4 py-3 shadow-xl backdrop-blur"
-          >
-            <div className="flex items-center gap-2">
-              <div className="flex">
-                {[0,1,2,3,4].map(i => <Star key={i} className="h-4 w-4 fill-primary text-primary" />)}
-              </div>
-              <div className="text-sm font-bold">5.0</div>
-            </div>
-            <div className="text-xs text-muted-foreground">{lang === "ar" ? "تقييم العميلات" : "דירוג לקוחות"}</div>
-          </motion.div>
-        </motion.div>
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
-        className="mt-16 flex justify-center text-muted-foreground"
-      >
-        <ChevronDown className="h-6 w-6 animate-bounce" />
+        </div>
       </motion.div>
     </section>
+  );
+}
+
+/* ---------------- FLOATING BOOK BUTTON ---------------- */
+function FloatingBookButton() {
+  const { t } = useLang();
+  const [scrolled, setScrolled] = useState(false);
+  const [bookingVisible, setBookingVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 420);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const el = document.getElementById("booking");
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setBookingVisible(entry.isIntersecting), { threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const show = scrolled && !bookingVisible;
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 24 }}
+          transition={{ duration: 0.25 }}
+          className="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center px-4"
+        >
+          <a
+            href="#booking"
+            className="pointer-events-auto inline-flex items-center gap-2.5 rounded-full bg-foreground px-8 py-4 font-bold text-background shadow-2xl transition active:scale-95"
+          >
+            {t("bookNow")}
+            <Calendar className="h-5 w-5" />
+          </a>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
